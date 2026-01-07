@@ -1,49 +1,235 @@
 <!DOCTYPE html>
 <html>
 <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU"></script>
-<body style="margin:0;height:100vh">
-<div id="map" style="width:100%;height:100%"></div>
+<body style="margin:0;display:flex;flex-direction:column;height:100vh">
+<div id="map" style="flex:2"></div>
+<div style="padding:15px;background:#f5f5f5;flex:1;min-height:200px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <div style="font-weight:bold">Выбранные точки:</div>
+        <div>
+            <button onclick="toggleTracking()" id="trackBtn" style="background:#666;color:white;border:none;padding:5px 15px;border-radius:4px;cursor:pointer;margin-right:10px">
+                Включить отслеживание
+            </button>
+            <button onclick="copyToClipboard()" style="background:#4CAF50;color:white;border:none;padding:5px 15px;border-radius:4px;cursor:pointer">
+                Копировать список
+            </button>
+        </div>
+    </div>
+    <div id="userCoords" style="margin-bottom:10px;padding:5px;background:#fff;border:1px solid #ddd;border-radius:4px;font-family:monospace">
+        Координаты: ожидание GPS...
+    </div>
+    <div id="selectedPoints" style="height:calc(100% - 90px);overflow:auto;background:white;padding:10px;border:1px solid #ddd"></div>
+</div>
+
 <script>
+let map;
+let selectedPoints = [];
+let placemarks = [];
+let userLocationMarker = null;
+let isTracking = false;
+let watchId = null;
+let userCoords = null;
+
 ymaps.ready(() => {
-    // Парсим точки из параметра URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const pointsParam = urlParams.get('points');
+    map = new ymaps.Map('map', {center: [55.75, 37.62], zoom: 10});
     
-    // Формат: points=lat1,lng1;lat2,lng2;lat3,lng3
-    let points = [];
-    
-    if (pointsParam) {
-        points = pointsParam.split(';').map(pair => {
-            const [lat, lng] = pair.split(',').map(Number);
-            return [lat, lng];
-        }).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
-    } else {
-        // Точки по умолчанию, если нет параметра
-        points = [[55.75,37.62],[59.93,30.34],[55.80,49.11]];
-    }
-    
-    // Создаем карту
-    const map = new ymaps.Map('map', {
-        center: points[0] || [55.75,37.62],
-        zoom: points.length > 1 ? 4 : 10
+    map.events.add('click', (e) => {
+        const coords = e.get('coords');
+        addPoint(coords);
     });
-    
-    // Добавляем точки
-    points.forEach((c,i) => {
-        map.geoObjects.add(new ymaps.Placemark(c, {
-            hintContent: `Точка ${i+1}`,
-            balloonContent: `${c[0]}, ${c[1]}`
-        }, {
-            preset: 'islands#redStretchyIcon',
-            iconCaption: `${i+1}`
-        }));
-    });
-    
-    // Автомасштабирование если точек несколько
-    if (points.length > 1) {
-        map.setBounds(map.geoObjects.getBounds());
-    }
 });
+
+function toggleTracking() {
+    if (isTracking) {
+        stopTracking();
+    } else {
+        startTracking();
+    }
+}
+
+function startTracking() {
+    if (!navigator.geolocation) {
+        alert('Геолокация не поддерживается вашим браузером');
+        return;
+    }
+    
+    const options = {
+        enableHighAccuracy: true,
+        maximumAge: 10000,
+        timeout: 5000
+    };
+    
+    watchId = navigator.geolocation.watchPosition(
+        (position) => {
+            userCoords = [position.coords.latitude, position.coords.longitude];
+            updateUserLocation();
+        },
+        (error) => {
+            console.error('Ошибка геолокации:', error);
+            document.getElementById('userCoords').textContent = `Ошибка: ${error.message}`;
+        },
+        options
+    );
+    
+    isTracking = true;
+    document.getElementById('trackBtn').textContent = 'Выключить отслеживание';
+    document.getElementById('trackBtn').style.background = '#f44336';
+}
+
+function stopTracking() {
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+    isTracking = false;
+    document.getElementById('trackBtn').textContent = 'Включить отслеживание';
+    document.getElementById('trackBtn').style.background = '#666';
+}
+
+function updateUserLocation() {
+    if (!userCoords) return;
+    
+    // Обновляем текст координат
+    document.getElementById('userCoords').textContent = 
+        `Координаты: ${userCoords[0].toFixed(6)}, ${userCoords[1].toFixed(6)}`;
+    
+    // Создаем или обновляем маркер
+    if (!userLocationMarker) {
+        userLocationMarker = new ymaps.Placemark(userCoords, {
+            hintContent: 'Вы здесь',
+            balloonContent: 'Ваше текущее местоположение'
+        }, {
+            preset: 'islands#circleIcon',
+            iconColor: '#1E88E5'
+        });
+        map.geoObjects.add(userLocationMarker);
+    } else {
+        userLocationMarker.geometry.setCoordinates(userCoords);
+    }
+    
+    // Центрируем карту на пользователе (только если отслеживание активно)
+    if (isTracking) {
+        map.setCenter(userCoords, 16);
+    }
+}
+
+function addPoint(coords, description = '') {
+    const id = selectedPoints.length + 1;
+    
+    const placemark = new ymaps.Placemark(coords, {
+        hintContent: description || `Точка ${id}`,
+        balloonContent: description || `Точка ${id}: ${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`
+    }, {
+        preset: 'islands#redIcon',
+        draggable: true
+    });
+    
+    placemark.events.add('dragend', () => {
+        const newCoords = placemark.geometry.getCoordinates();
+        updatePoint(id, {coords: newCoords});
+    });
+    
+    map.geoObjects.add(placemark);
+    placemarks.push({id, placemark});
+    
+    selectedPoints.push({id, coords, description});
+    updateList();
+}
+
+function updatePoint(id, updates) {
+    const point = selectedPoints.find(p => p.id === id);
+    if (point) {
+        if (updates.coords) point.coords = updates.coords;
+        if (updates.description !== undefined) point.description = updates.description;
+        
+        const placemark = placemarks.find(p => p.id === id)?.placemark;
+        if (placemark) {
+            placemark.properties.set({
+                hintContent: point.description || `Точка ${id}`,
+                balloonContent: point.description 
+                    ? `${point.description}<br>${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
+                    : `Точка ${id}: ${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
+            });
+        }
+        
+        updateList();
+    }
+}
+
+function updateList() {
+    const container = document.getElementById('selectedPoints');
+    if (selectedPoints.length === 0) {
+        container.innerHTML = '<div style="color:#999;text-align:center;padding:20px">Кликайте на карту, чтобы добавить точки</div>';
+    } else {
+        container.innerHTML = selectedPoints.map(p => `
+            <div style="padding:8px;border-bottom:1px solid #eee">
+                <div>
+                    <b>${p.id}.</b> ${p.coords[0].toFixed(6)}, ${p.coords[1].toFixed(6)}
+                    <button onclick="removePoint(${p.id})" style="float:right;margin-left:5px;background:#ff4444;color:white;border:none;padding:2px 8px;border-radius:3px;cursor:pointer">X</button>
+                </div>
+                <div style="margin-top:5px">
+                    <input type="text" 
+                           value="${p.description || ''}" 
+                           placeholder="Описание точки..."
+                           onchange="updatePoint(${p.id}, {description: this.value})"
+                           style="width:calc(100% - 10px);padding:4px;border:1px solid #ddd;border-radius:3px">
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
+function removePoint(id) {
+    const index = placemarks.findIndex(p => p.id === id);
+    if (index !== -1) {
+        map.geoObjects.remove(placemarks[index].placemark);
+        placemarks.splice(index, 1);
+    }
+    
+    selectedPoints = selectedPoints.filter(p => p.id !== id);
+    
+    selectedPoints.forEach((p, i) => p.id = i + 1);
+    placemarks.forEach((p, i) => {
+        p.id = i + 1;
+        const point = selectedPoints.find(sp => sp.id === i + 1);
+        p.placemark.properties.set({
+            hintContent: point?.description || `Точка ${i + 1}`,
+            balloonContent: point?.description 
+                ? `${point.description}<br>${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
+                : `Точка ${i + 1}: ${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
+        });
+    });
+    
+    updateList();
+}
+
+function copyToClipboard() {
+    if (selectedPoints.length === 0) {
+        alert('Нет точек для копирования');
+        return;
+    }
+    
+    const text = selectedPoints.map(p => 
+        `${p.coords[0].toFixed(6)}, ${p.coords[1].toFixed(6)}${p.description ? ` - ${p.description}` : ''}`
+    ).join('\n');
+    
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Скопировано!';
+            btn.style.background = '#45a049';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '#4CAF50';
+            }, 1500);
+        })
+        .catch(err => {
+            console.error('Ошибка копирования: ', err);
+            alert('Не удалось скопировать в буфер обмена');
+        });
+}
 </script>
 </body>
 </html>
