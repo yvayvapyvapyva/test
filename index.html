@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Профиль пользователя</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .card {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .label {
+            color: #666;
+            font-size: 14px;
+        }
+        .value {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="label">Имя пользователя</div>
+    <div class="value" id="username"></div>
+
+    <div class="label">ID пользователя</div>
+    <div class="value" id="userId"></div>
+</div>
+
+<script>
+    // Пример данных пользователя
+    const user = {
+        name: "Иван Иванов",
+        id: 123456
+    };
+
+    document.getElementById("username").textContent = user.name;
+    document.getElementById("userId").textContent = user.id;
+</script>
+
+</body>
+</html>
