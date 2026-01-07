@@ -2,51 +2,49 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Профиль пользователя</title>
+    <title>Telegram WebApp</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background-color: #f4f4f4;
+            padding: 20px;
         }
         .card {
             background: white;
-            padding: 20px 30px;
-            border-radius: 10px;
+            padding: 16px;
+            border-radius: 12px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        .label {
-            color: #666;
-            font-size: 14px;
-        }
-        .value {
-            font-size: 18px;
-            margin-bottom: 10px;
+        h2 {
+            margin-top: 0;
         }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <div class="label">Имя пользователя</div>
-    <div class="value" id="username"></div>
-
-    <div class="label">ID пользователя</div>
-    <div class="value" id="userId"></div>
+    <h2>Данные пользователя</h2>
+    <p><strong>Имя пользователя:</strong> <span id="username">—</span></p>
+    <p><strong>ID пользователя:</strong> <span id="userid">—</span></p>
 </div>
 
 <script>
-    // Пример данных пользователя
-    const user = {
-        name: "Иван Иванов",
-        id: 123456
-    };
+    const tg = window.Telegram.WebApp;
+    tg.ready();
 
-    document.getElementById("username").textContent = user.name;
-    document.getElementById("userId").textContent = user.id;
+    const user = tg.initDataUnsafe?.user;
+
+    if (user) {
+        document.getElementById("username").textContent =
+            user.username ? "@" + user.username : "не указан";
+
+        document.getElementById("userid").textContent = user.id;
+    } else {
+        document.getElementById("username").textContent = "нет данных";
+        document.getElementById("userid").textContent = "нет данных";
+    }
 </script>
 
 </body>
