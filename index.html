@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Геоточки на Яндекс.Картах</title>
+    <title>Нумерованные геоточки на спутниковой карте</title>
     <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
     <style>
         #map {
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>Геоточки на Яндекс.Картах</h1>
+    <h1>Нумерованные геоточки на спутниковой карте</h1>
     <div id="map"></div>
 
     <script>
@@ -26,20 +26,21 @@
         ymaps.ready(init);
 
         function init() {
-            // Создание карты
+            // Создание карты со спутниковым видом
             const map = new ymaps.Map("map", {
                 center: [55.751244, 37.618423],
                 zoom: 5,
+                type: 'yandex#satellite', // Вид со спутника
                 controls: ['zoomControl', 'fullscreenControl']
             });
 
-            // Добавление геоточек на карту
-            geoPoints.forEach(point => {
+            // Добавление нумерованных точек
+            geoPoints.forEach((point, index) => {
                 const placemark = new ymaps.Placemark(point.coords, {
-                    balloonContent: `<strong>${point.name}</strong><br>Координаты: ${point.coords.join(', ')}`
+                    balloonContent: `<strong>${index + 1}. ${point.name}</strong><br>Координаты: ${point.coords.join(', ')}`
                 }, {
-                    preset: 'islands#blueDotIcon',
-                    draggable: false
+                    preset: 'islands#redStretchyIcon', // Иконка с цифрой
+                    iconContent: String(index + 1) // Номер точки на иконке
                 });
 
                 map.geoObjects.add(placemark);
