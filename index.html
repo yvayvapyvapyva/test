@@ -1,235 +1,511 @@
 <!DOCTYPE html>
 <html>
-<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU"></script>
-<body style="margin:0;display:flex;flex-direction:column;height:100vh">
-<div id="map" style="flex:2"></div>
-<div style="padding:15px;background:#f5f5f5;flex:1;min-height:200px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-        <div style="font-weight:bold">Выбранные точки:</div>
-        <div>
-            <button onclick="toggleTracking()" id="trackBtn" style="background:#666;color:white;border:none;padding:5px 15px;border-radius:4px;cursor:pointer;margin-right:10px">
-                Включить отслеживание
-            </button>
-            <button onclick="copyToClipboard()" style="background:#4CAF50;color:white;border:none;padding:5px 15px;border-radius:4px;cursor:pointer">
-                Копировать список
-            </button>
+<head>
+    <meta charset="utf-8">
+    <title>Яндекс Карта с вращаемыми точками</title>
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=ваш_ключ_доступа&lang=ru_RU"></script>
+    <style>
+        #map {
+            width: 100%;
+            height: 500px;
+        }
+        #controls {
+            padding: 10px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ccc;
+            font-family: Arial, sans-serif;
+        }
+        #angleControls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        #currentAngle {
+            font-weight: bold;
+            color: #0095b6;
+            font-size: 18px;
+            min-width: 60px;
+            text-align: center;
+        }
+        .angle-btn {
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            font-weight: bold;
+            background: #0095b6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .angle-btn:hover {
+            background: #007799;
+        }
+        .angle-btn:active {
+            background: #005577;
+        }
+        #stepInput {
+            width: 60px;
+            padding: 5px;
+            margin-left: 10px;
+        }
+        .point-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .point-item {
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #eee;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .point-item:hover {
+            background: #f0f8ff;
+        }
+        .point-item.active {
+            background: #e6f7ff;
+            border-color: #0095b6;
+            border-width: 2px;
+        }
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .instruction {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <div class="controls-row">
+            <div id="angleControls">
+                <button class="angle-btn" id="angleLeftBtn">←</button>
+                <div>
+                    <strong>Угол: </strong><span id="currentAngle">0°</span>
+                </div>
+                <button class="angle-btn" id="angleRightBtn">→</button>
+                <div>
+                    <label>Шаг: 
+                        <input type="number" id="stepInput" min="1" max="90" value="5">
+                        °
+                    </label>
+                </div>
+            </div>
         </div>
-    </div>
-    <div id="userCoords" style="margin-bottom:10px;padding:5px;background:#fff;border:1px solid #ddd;border-radius:4px;font-family:monospace">
-        Координаты: ожидание GPS...
-    </div>
-    <div id="selectedPoints" style="height:calc(100% - 90px);overflow:auto;background:white;padding:10px;border:1px solid #ddd"></div>
-</div>
-
-<script>
-let map;
-let selectedPoints = [];
-let placemarks = [];
-let userLocationMarker = null;
-let isTracking = false;
-let watchId = null;
-let userCoords = null;
-
-ymaps.ready(() => {
-    map = new ymaps.Map('map', {center: [55.75, 37.62], zoom: 10});
-    
-    map.events.add('click', (e) => {
-        const coords = e.get('coords');
-        addPoint(coords);
-    });
-});
-
-function toggleTracking() {
-    if (isTracking) {
-        stopTracking();
-    } else {
-        startTracking();
-    }
-}
-
-function startTracking() {
-    if (!navigator.geolocation) {
-        alert('Геолокация не поддерживается вашим браузером');
-        return;
-    }
-    
-    const options = {
-        enableHighAccuracy: true,
-        maximumAge: 10000,
-        timeout: 5000
-    };
-    
-    watchId = navigator.geolocation.watchPosition(
-        (position) => {
-            userCoords = [position.coords.latitude, position.coords.longitude];
-            updateUserLocation();
-        },
-        (error) => {
-            console.error('Ошибка геолокации:', error);
-            document.getElementById('userCoords').textContent = `Ошибка: ${error.message}`;
-        },
-        options
-    );
-    
-    isTracking = true;
-    document.getElementById('trackBtn').textContent = 'Выключить отслеживание';
-    document.getElementById('trackBtn').style.background = '#f44336';
-}
-
-function stopTracking() {
-    if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-    }
-    isTracking = false;
-    document.getElementById('trackBtn').textContent = 'Включить отслеживание';
-    document.getElementById('trackBtn').style.background = '#666';
-}
-
-function updateUserLocation() {
-    if (!userCoords) return;
-    
-    // Обновляем текст координат
-    document.getElementById('userCoords').textContent = 
-        `Координаты: ${userCoords[0].toFixed(6)}, ${userCoords[1].toFixed(6)}`;
-    
-    // Создаем или обновляем маркер
-    if (!userLocationMarker) {
-        userLocationMarker = new ymaps.Placemark(userCoords, {
-            hintContent: 'Вы здесь',
-            balloonContent: 'Ваше текущее местоположение'
-        }, {
-            preset: 'islands#circleIcon',
-            iconColor: '#1E88E5'
-        });
-        map.geoObjects.add(userLocationMarker);
-    } else {
-        userLocationMarker.geometry.setCoordinates(userCoords);
-    }
-    
-    // Центрируем карту на пользователе (только если отслеживание активно)
-    if (isTracking) {
-        map.setCenter(userCoords, 16);
-    }
-}
-
-function addPoint(coords, description = '') {
-    const id = selectedPoints.length + 1;
-    
-    const placemark = new ymaps.Placemark(coords, {
-        hintContent: description || `Точка ${id}`,
-        balloonContent: description || `Точка ${id}: ${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`
-    }, {
-        preset: 'islands#redIcon',
-        draggable: true
-    });
-    
-    placemark.events.add('dragend', () => {
-        const newCoords = placemark.geometry.getCoordinates();
-        updatePoint(id, {coords: newCoords});
-    });
-    
-    map.geoObjects.add(placemark);
-    placemarks.push({id, placemark});
-    
-    selectedPoints.push({id, coords, description});
-    updateList();
-}
-
-function updatePoint(id, updates) {
-    const point = selectedPoints.find(p => p.id === id);
-    if (point) {
-        if (updates.coords) point.coords = updates.coords;
-        if (updates.description !== undefined) point.description = updates.description;
         
-        const placemark = placemarks.find(p => p.id === id)?.placemark;
-        if (placemark) {
-            placemark.properties.set({
-                hintContent: point.description || `Точка ${id}`,
-                balloonContent: point.description 
-                    ? `${point.description}<br>${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
-                    : `Точка ${id}: ${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
+        <div class="controls-row">
+            <button id="clearBtn" style="padding: 8px 16px;">Очистить все</button>
+            <button id="exportBtn" style="padding: 8px 16px; background: #28a745; color: white;">Экспорт в JSON</button>
+        </div>
+        
+        <div class="instruction">
+            <strong>Управление:</strong> 
+            1. Кликните по карте чтобы добавить точку. 
+            2. Кликните по точке чтобы выбрать её. 
+            3. Используйте кнопки ← и → для вращения выбранной точки. 
+            4. Можно также использовать Alt + колесико мыши.
+        </div>
+        
+        <div id="pointsList" class="point-info"></div>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        // Инициализация карты после загрузки API
+        ymaps.ready(init);
+        
+        let map;
+        let myCollection;
+        let allPoints = [];
+        let activePointIndex = -1;
+        let mouseWheelHandler;
+        
+        function init() {
+            // Создаем карту
+            map = new ymaps.Map('map', {
+                center: [55.76, 37.64],
+                zoom: 10
+            });
+            
+            // Коллекция для хранения меток
+            myCollection = new ymaps.GeoObjectCollection();
+            
+            // Обработчик клика по карте
+            map.events.add('click', function (e) {
+                var coords = e.get('coords');
+                addPoint(coords, 0);
+            });
+            
+            // Обработчик колесика мыши для вращения (Alt + колесико)
+            mouseWheelHandler = function(e) {
+                if (e.altKey && activePointIndex !== -1) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var delta = e.deltaY || e.detail || e.wheelDelta;
+                    var step = parseInt(document.getElementById('stepInput').value) || 5;
+                    var direction = delta > 0 ? -step : step;
+                    
+                    var point = allPoints[activePointIndex];
+                    var newAngle = (point.angle + direction + 360) % 360;
+                    
+                    updatePointAngle(activePointIndex, newAngle);
+                }
+            };
+            
+            // Добавляем обработчики колесика
+            map.container.events.add(['wheel', 'mousewheel'], mouseWheelHandler);
+            
+            // Обработчики кнопок вращения
+            document.getElementById('angleLeftBtn').addEventListener('click', function() {
+                rotateActivePoint(-1);
+            });
+            
+            document.getElementById('angleRightBtn').addEventListener('click', function() {
+                rotateActivePoint(1);
+            });
+            
+            // Обработчики клавиш стрелок
+            document.addEventListener('keydown', function(e) {
+                if (activePointIndex === -1) return;
+                
+                var step = parseInt(document.getElementById('stepInput').value) || 5;
+                
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    rotateActivePoint(-1);
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    rotateActivePoint(1);
+                }
+            });
+            
+            // Кнопка для очистки всех точек
+            document.getElementById('clearBtn').addEventListener('click', function() {
+                myCollection.removeAll();
+                allPoints = [];
+                activePointIndex = -1;
+                updateCurrentAngleDisplay(0);
+                updatePointsList();
+            });
+            
+            // Кнопка для экспорта данных
+            document.getElementById('exportBtn').addEventListener('click', function() {
+                exportToJSON();
+            });
+            
+            // Обработчик изменения шага
+            document.getElementById('stepInput').addEventListener('change', function() {
+                var step = parseInt(this.value);
+                if (step < 1) this.value = 1;
+                if (step > 90) this.value = 90;
             });
         }
         
-        updateList();
-    }
-}
-
-function updateList() {
-    const container = document.getElementById('selectedPoints');
-    if (selectedPoints.length === 0) {
-        container.innerHTML = '<div style="color:#999;text-align:center;padding:20px">Кликайте на карту, чтобы добавить точки</div>';
-    } else {
-        container.innerHTML = selectedPoints.map(p => `
-            <div style="padding:8px;border-bottom:1px solid #eee">
-                <div>
-                    <b>${p.id}.</b> ${p.coords[0].toFixed(6)}, ${p.coords[1].toFixed(6)}
-                    <button onclick="removePoint(${p.id})" style="float:right;margin-left:5px;background:#ff4444;color:white;border:none;padding:2px 8px;border-radius:3px;cursor:pointer">X</button>
-                </div>
-                <div style="margin-top:5px">
-                    <input type="text" 
-                           value="${p.description || ''}" 
-                           placeholder="Описание точки..."
-                           onchange="updatePoint(${p.id}, {description: this.value})"
-                           style="width:calc(100% - 10px);padding:4px;border:1px solid #ddd;border-radius:3px">
-                </div>
-            </div>
-        `).join('');
-    }
-}
-
-function removePoint(id) {
-    const index = placemarks.findIndex(p => p.id === id);
-    if (index !== -1) {
-        map.geoObjects.remove(placemarks[index].placemark);
-        placemarks.splice(index, 1);
-    }
-    
-    selectedPoints = selectedPoints.filter(p => p.id !== id);
-    
-    selectedPoints.forEach((p, i) => p.id = i + 1);
-    placemarks.forEach((p, i) => {
-        p.id = i + 1;
-        const point = selectedPoints.find(sp => sp.id === i + 1);
-        p.placemark.properties.set({
-            hintContent: point?.description || `Точка ${i + 1}`,
-            balloonContent: point?.description 
-                ? `${point.description}<br>${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
-                : `Точка ${i + 1}: ${point.coords[0].toFixed(6)}, ${point.coords[1].toFixed(6)}`
-        });
-    });
-    
-    updateList();
-}
-
-function copyToClipboard() {
-    if (selectedPoints.length === 0) {
-        alert('Нет точек для копирования');
-        return;
-    }
-    
-    const text = selectedPoints.map(p => 
-        `${p.coords[0].toFixed(6)}, ${p.coords[1].toFixed(6)}${p.description ? ` - ${p.description}` : ''}`
-    ).join('\n');
-    
-    navigator.clipboard.writeText(text)
-        .then(() => {
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = 'Скопировано!';
-            btn.style.background = '#45a049';
+        // Функция вращения активной точки
+        function rotateActivePoint(direction) {
+            if (activePointIndex === -1) return;
             
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.background = '#4CAF50';
-            }, 1500);
-        })
-        .catch(err => {
-            console.error('Ошибка копирования: ', err);
-            alert('Не удалось скопировать в буфер обмена');
-        });
-}
-</script>
+            var point = allPoints[activePointIndex];
+            var step = parseInt(document.getElementById('stepInput').value) || 5;
+            var angleChange = direction > 0 ? step : -step;
+            var newAngle = (point.angle + angleChange + 360) % 360;
+            
+            updatePointAngle(activePointIndex, newAngle);
+        }
+        
+        // Функция добавления точки
+        function addPoint(coords, angle) {
+            // Создаем метку с указателем направления
+            var myPlacemark = createPlacemarkWithAngle(coords, angle);
+            
+            // Добавляем метку в коллекцию и на карту
+            myCollection.add(myPlacemark);
+            map.geoObjects.add(myCollection);
+            
+            // Сохраняем данные точки
+            var pointData = {
+                coords: coords,
+                angle: angle,
+                placemark: myPlacemark,
+                id: Date.now() + Math.random()
+            };
+            allPoints.push(pointData);
+            
+            // Выбираем новую точку как активную
+            selectPoint(allPoints.length - 1);
+            
+            // Обновляем список точек
+            updatePointsList();
+        }
+        
+        // Функция создания метки с указателем направления (уменьшенная в 2 раза версия)
+        function createPlacemarkWithAngle(coords, angle) {
+            // Создаем УМЕНЬШЕННЫЙ SVG для стрелки (40x40 пикселей вместо 80x80)
+            var svg = `
+                <svg width="40" height="40" viewBox="0 0 40 40">
+                    <!-- Внешний круг (фон) - уменьшенный -->
+                    <circle cx="20" cy="20" r="19" fill="#0095b6" opacity="0.9" stroke="white" stroke-width="1.5"/>
+                    
+                    <!-- Внутренний круг - уменьшенный -->
+                    <circle cx="20" cy="20" r="12.5" fill="#33b5e5" opacity="0.8"/>
+                    
+                    <!-- Стрелка с треугольным наконечником - уменьшенная -->
+                    <g transform="rotate(${angle}, 20, 20)">
+                        <!-- Основание стрелки -->
+                        <rect x="18.5" y="5" width="3" height="22.5" rx="1.5" fill="#ff4444" opacity="0.9"/>
+                        
+                        <!-- Треугольный наконечник -->
+                        <polygon points="17.5,5 22.5,5 20,0" fill="#ff4444" opacity="0.9"/>
+                        
+                        <!-- Закругленный конец стрелки -->
+                        <circle cx="20" cy="27.5" r="2" fill="#ff4444"/>
+                    </g>
+                    
+                    <!-- Центральный круг - уменьшенный -->
+                    <circle cx="20" cy="20" r="4" fill="white" stroke="#0095b6" stroke-width="1.5"/>
+                    
+                    <!-- Линия направления (опорная) - уменьшенная -->
+                    <line x1="20" y1="20" x2="20" y2="7.5" 
+                          stroke="white" stroke-width="0.8" stroke-dasharray="2,2"
+                          transform="rotate(${angle}, 20, 20)"/>
+                    
+                    <!-- Деления угла (каждые 45 градусов) - уменьшенные -->
+                    <g stroke="white" stroke-width="0.8">
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(0, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(45, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(90, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(135, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(180, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(225, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(270, 20, 20)"/>
+                        <line x1="20" y1="2.5" x2="20" y2="5" transform="rotate(315, 20, 20)"/>
+                    </g>
+                </svg>
+            `;
+            
+            // Создаем метку БЕЗ БАЛУНА
+            var myPlacemark = new ymaps.Placemark(coords, {
+                // Пустой заголовок и содержимое - балун не будет отображаться
+                iconContent: svg,
+                hintContent: `Точка: ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)} | Азимут: ${angle}°`
+            }, {
+                iconLayout: 'default#imageWithContent',
+                iconImageHref: '',
+                iconImageSize: [40, 40], // Уменьшенный размер (в 2 раза меньше)
+                iconImageOffset: [-20, -20], // Смещение для центрирования уменьшенной иконки
+                draggable: true,
+                // Отключаем балун полностью
+                hasBalloon: false,
+                openBalloonOnClick: false,
+                hasHint: true // Оставляем подсказку при наведении
+            });
+            
+            // Обработчик перетаскивания метки
+            myPlacemark.events.add('dragend', function(e) {
+                var newCoords = myPlacemark.geometry.getCoordinates();
+                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
+                if (pointIndex !== -1) {
+                    allPoints[pointIndex].coords = newCoords;
+                    if (pointIndex === activePointIndex) {
+                        updateCurrentAngleDisplay(allPoints[pointIndex].angle);
+                    }
+                    updatePointsList();
+                }
+            });
+            
+            // Обработчик клика по метке
+            myPlacemark.events.add('click', function(e) {
+                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
+                if (pointIndex !== -1) {
+                    selectPoint(pointIndex);
+                }
+                e.preventDefault();
+            });
+            
+            // Обработчик наведения на метку
+            myPlacemark.events.add('mouseenter', function(e) {
+                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
+                if (pointIndex !== -1 && pointIndex !== activePointIndex) {
+                    highlightPoint(pointIndex, true);
+                }
+            });
+            
+            myPlacemark.events.add('mouseleave', function(e) {
+                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
+                if (pointIndex !== -1 && pointIndex !== activePointIndex) {
+                    highlightPoint(pointIndex, false);
+                }
+            });
+            
+            return myPlacemark;
+        }
+        
+        // Функция обновления угла точки
+        function updatePointAngle(index, newAngle) {
+            if (index < 0 || index >= allPoints.length) return;
+            
+            var point = allPoints[index];
+            point.angle = newAngle;
+            
+            // Создаем новую метку с обновленным углом
+            var newPlacemark = createPlacemarkWithAngle(point.coords, newAngle);
+            
+            // Заменяем старую метку новой
+            myCollection.remove(point.placemark);
+            myCollection.add(newPlacemark);
+            
+            // Обновляем ссылку на метку
+            point.placemark = newPlacemark;
+            
+            // Если эта точка активна, обновляем отображение
+            if (index === activePointIndex) {
+                updateCurrentAngleDisplay(newAngle);
+            }
+            
+            updatePointsList();
+        }
+        
+        // Функция выбора точки
+        function selectPoint(index) {
+            // Снимаем выделение с предыдущей активной точки
+            if (activePointIndex !== -1) {
+                highlightPoint(activePointIndex, false);
+            }
+            
+            // Устанавливаем новую активную точку
+            activePointIndex = index;
+            
+            // Выделяем новую активную точку
+            if (activePointIndex !== -1) {
+                highlightPoint(activePointIndex, true);
+                var point = allPoints[activePointIndex];
+                updateCurrentAngleDisplay(point.angle);
+            }
+            
+            updatePointsList();
+        }
+        
+        // Функция выделения точки
+        function highlightPoint(index, highlight) {
+            var pointItem = document.querySelector(`.point-item[data-index="${index}"]`);
+            if (pointItem) {
+                pointItem.classList.toggle('active', highlight);
+            }
+        }
+        
+        // Функция обновления отображения текущего угла
+        function updateCurrentAngleDisplay(angle) {
+            document.getElementById('currentAngle').textContent = angle + '°';
+        }
+        
+        // Функция обновления списка точек
+        function updatePointsList() {
+            var pointsList = document.getElementById('pointsList');
+            pointsList.innerHTML = '';
+            
+            if (allPoints.length === 0) {
+                pointsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Точек пока нет</div>';
+                return;
+            }
+            
+            var html = '<div style="margin-bottom: 10px; font-weight: bold; color: #0095b6;">Список точек (кликните для выбора):</div>';
+            allPoints.forEach(function(point, index) {
+                var isActive = index === activePointIndex;
+                html += `
+                    <div class="point-item ${isActive ? 'active' : ''}" 
+                         data-index="${index}"
+                         onclick="selectPoint(${index})"
+                         style="cursor: pointer; padding: 10px; margin: 8px 0; border: 2px solid ${isActive ? '#0095b6' : '#eee'}; background: ${isActive ? '#e6f7ff' : 'white'}">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <strong style="color: ${isActive ? '#0095b6' : '#333'}">Точка ${index + 1}${isActive ? ' (активна)' : ''}</strong><br>
+                                <div style="font-size: 12px; margin-top: 5px;">
+                                    Ш: ${point.coords[0].toFixed(6)}<br>
+                                    Д: ${point.coords[1].toFixed(6)}<br>
+                                    Азимут: <span style="color: #ff4444; font-weight: bold;">${point.angle}°</span>
+                                </div>
+                            </div>
+                            <button onclick="removePoint(${index}); event.stopPropagation();" 
+                                    style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            pointsList.innerHTML = html;
+        }
+        
+        // Функция удаления точки
+        function removePoint(index) {
+            if (index >= 0 && index < allPoints.length) {
+                myCollection.remove(allPoints[index].placemark);
+                allPoints.splice(index, 1);
+                
+                if (activePointIndex === index) {
+                    activePointIndex = -1;
+                    updateCurrentAngleDisplay(0);
+                } else if (activePointIndex > index) {
+                    activePointIndex--;
+                }
+                
+                updatePointsList();
+            }
+        }
+        
+        // Функция экспорта данных в JSON
+        function exportToJSON() {
+            var exportData = allPoints.map(function(point, index) {
+                return {
+                    id: index + 1,
+                    latitude: point.coords[0],
+                    longitude: point.coords[1],
+                    azimuth: point.angle,
+                    coords: point.coords,
+                    angle: point.angle
+                };
+            });
+            
+            var jsonStr = JSON.stringify(exportData, null, 2);
+            
+            // Создаем временный элемент для копирования
+            var textarea = document.createElement('textarea');
+            textarea.value = jsonStr;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            alert('Данные скопированы в буфер обмена!\n\n' + jsonStr);
+            
+            // Также выводим в консоль
+            console.log('Экспортированные данные:', exportData);
+        }
+        
+        // Экспортируем функции для использования в HTML
+        window.selectPoint = selectPoint;
+        window.removePoint = removePoint;
+        window.exportToJSON = exportToJSON;
+    </script>
 </body>
 </html>
