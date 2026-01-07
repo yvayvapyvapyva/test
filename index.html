@@ -16,7 +16,6 @@
     <div id="map"></div>
 
     <script>
-        // Пример списка геоточек
         const geoPoints = [
             { name: "Москва", coords: [55.751244, 37.618423] },
             { name: "Санкт-Петербург", coords: [59.934280, 30.335099] },
@@ -26,27 +25,28 @@
         ymaps.ready(init);
 
         function init() {
-            // Создание карты со спутниковым видом
             const map = new ymaps.Map("map", {
                 center: [55.751244, 37.618423],
                 zoom: 5,
-                type: 'yandex#satellite', // Вид со спутника
+                type: 'yandex#satellite', // Спутниковый вид
                 controls: ['zoomControl', 'fullscreenControl']
             });
 
-            // Добавление нумерованных точек
             geoPoints.forEach((point, index) => {
                 const placemark = new ymaps.Placemark(point.coords, {
-                    balloonContent: `<strong>${index + 1}. ${point.name}</strong><br>Координаты: ${point.coords.join(', ')}`
+                    balloonContent: `<strong>${index + 1}. ${point.name}</strong><br>Координаты: ${point.coords.join(', ')}`,
+                    hintContent: `${index + 1}. ${point.name}` // всплывающая подсказка при наведении
                 }, {
-                    preset: 'islands#redStretchyIcon', // Иконка с цифрой
-                    iconContent: String(index + 1) // Номер точки на иконке
+                    preset: 'islands#redStretchyIcon',
+                    iconContent: `${index + 1}`,
+                    openBalloonOnClick: true,
+                    balloonOffset: [0, -35]
                 });
 
                 map.geoObjects.add(placemark);
             });
 
-            // Автоматическое масштабирование карты под все точки
+            // Масштаб карты под все точки
             const bounds = map.geoObjects.getBounds();
             if (bounds) {
                 map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 50 });
