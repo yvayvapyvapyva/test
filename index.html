@@ -2,363 +2,699 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Навигатор с расширенными голосовыми возможностями</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2196F3">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Навигатор с командами</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* ... (стили остаются такими же) ... */
-        .voice-instructions {
-            background-color: #e3f2fd;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-            font-size: 14px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
-        .platform-tabs {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 10px;
+
+        :root {
+            --primary: #2196F3;
+            --primary-dark: #1976D2;
+            --secondary: #4CAF50;
+            --danger: #f44336;
+            --warning: #ff9800;
+            --light: #f5f5f5;
+            --dark: #333;
+            --gray: #757575;
         }
-        .platform-tab {
-            padding: 8px 15px;
-            background-color: #f0f0f0;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
-        .platform-tab.active {
-            background-color: #2196F3;
+
+        .app-container {
+            max-width: 100%;
+            min-height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Шапка */
+        .header {
+            background: var(--primary);
             color: white;
+            padding: 20px 15px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+            position: relative;
+            z-index: 10;
         }
-        .platform-content {
-            display: none;
-            padding: 10px;
-            background-color: white;
-            border-radius: 4px;
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 5px;
         }
-        .platform-content.active {
+
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        /* Основной контент */
+        .content {
+            padding: 0;
+        }
+
+        /* Карточки */
+        .card {
+            background: white;
+            margin: 15px;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:active {
+            transform: scale(0.98);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title i {
+            color: var(--primary);
+        }
+
+        /* Поля ввода */
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
             display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray);
+            margin-bottom: 8px;
         }
-        .voice-stats {
+
+        .textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s;
+            background: #fafafa;
+        }
+
+        .textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: white;
+        }
+
+        /* Кнопки */
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 12px;
+            color: white;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .button:active {
+            transform: scale(0.98);
+        }
+
+        .button::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 5px;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            border-radius: 100%;
+            transform: scale(1, 1) translate(-50%);
+            transform-origin: 50% 50%;
+        }
+
+        .button:active::after {
+            animation: ripple 1s ease-out;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0, 0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(20, 20);
+                opacity: 0;
+            }
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        }
+
+        .button-secondary {
+            background: linear-gradient(135deg, var(--secondary), #388E3C);
+        }
+
+        .button-danger {
+            background: linear-gradient(135deg, var(--danger), #d32f2f);
+        }
+
+        .button-warning {
+            background: linear-gradient(135deg, var(--warning), #f57c00);
+        }
+
+        .button:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Статус */
+        .status-card {
+            background: linear-gradient(135deg, #ffecb3, #ffe082);
+            border-left: 6px solid var(--warning);
+        }
+
+        .status-content {
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--dark);
+        }
+
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #5d4037;
+        }
+
+        /* Список точек */
+        .points-list {
+            max-height: 300px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .point-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s;
+        }
+
+        .point-item.active {
+            background: #e3f2fd;
+            border-left-color: var(--secondary);
+            transform: translateX(5px);
+        }
+
+        .point-item.completed {
+            background: #e8f5e8;
+            border-left-color: #4CAF50;
+            opacity: 0.8;
+        }
+
+        .point-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .point-number {
+            background: var(--primary);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .point-command {
+            font-weight: 500;
+            margin: 10px 0;
+            color: var(--dark);
+        }
+
+        .point-coords {
+            font-size: 12px;
+            color: var(--gray);
+            margin-bottom: 5px;
+        }
+
+        .point-distance {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Контролы голоса */
+        .voice-controls {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-top: 15px;
         }
-        .stat-item {
-            padding: 10px;
-            background-color: white;
-            border-radius: 4px;
-            border: 1px solid #ddd;
+
+        .voice-select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 14px;
+            background: #fafafa;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        /* Анимации */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .slide-in {
+            animation: slideIn 0.3s ease;
+        }
+
+        /* Нижняя панель */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+        }
+
+        .bottom-nav .button {
+            margin: 0;
+            flex: 1;
+            padding: 16px;
+            font-size: 14px;
+        }
+
+        /* Модальные окна */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--dark);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--gray);
+            cursor: pointer;
+        }
+
+        /* Тост уведомления */
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-size: 14px;
+            z-index: 1001;
+            animation: toastSlideIn 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes toastSlideIn {
+            from { transform: translate(-50%, 100px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            .header h1 { font-size: 20px; }
+            .card { margin: 10px; padding: 15px; }
+            .button { padding: 16px; }
+            .voice-controls { grid-template-columns: 1fr; }
+        }
+
+        /* Темная тема */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            }
+            
+            .app-container {
+                background: rgba(18, 18, 24, 0.95);
+                color: #e0e0e0;
+            }
+            
+            .card {
+                background: #2d2d3d;
+                color: #e0e0e0;
+            }
+            
+            .textarea {
+                background: #1e1e2e;
+                border-color: #404040;
+                color: #e0e0e0;
+            }
+            
+            .point-item {
+                background: #252535;
+            }
+            
+            .status-card {
+                background: linear-gradient(135deg, #42371c, #5a4b1e);
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Навигатор с голосовыми командами</h1>
-        
-        <div class="voice-instructions">
-            <h3>📢 Как добавить больше голосов:</h3>
-            <div class="platform-tabs">
-                <button class="platform-tab active" data-platform="windows">Windows</button>
-                <button class="platform-tab" data-platform="mac">macOS</button>
-                <button class="platform-tab" data-platform="linux">Linux</button>
-                <button class="platform-tab" data-platform="browser">Браузеры</button>
-            </div>
-            
-            <div id="windows" class="platform-content active">
-                <h4>Windows 10/11:</h4>
-                <ol>
-                    <li>Нажмите <strong>Пуск → Параметры → Время и язык</strong></li>
-                    <li>Выберите <strong>Речь</strong> в левом меню</li>
-                    <li>В разделе "Управление голосами" нажмите <strong>Добавить голоса</strong></li>
-                    <li>Выберите язык (например, Русский) и нужные голоса</li>
-                    <li>Нажмите <strong>Установить</strong></li>
-                </ol>
-                <p><strong>Дополнительные голоса:</strong></p>
-                <ul>
-                    <li>Microsoft Irina Desktop (женский)</li>
-                    <li>Microsoft Pavel (мужской)</li>
-                    <li>RHVoice (с открытым исходным кодом)</li>
-                </ul>
-            </div>
-            
-            <div id="mac" class="platform-content">
-                <h4>macOS:</h4>
-                <ol>
-                    <li>Откройте <strong>Системные настройки → Универсальный доступ</strong></li>
-                    <li>Выберите <strong>Речь</strong> в левом меню</li>
-                    <li>Нажмите <strong>Дополнительные настройки...</strong></li>
-                    <li>Выберите и загрузите нужные голоса</li>
-                </ol>
-            </div>
-            
-            <div id="linux" class="platform-content">
-                <h4>Linux (Ubuntu/Debian):</h4>
-                <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">
-# Установка RHVoice (русские голоса)
-sudo apt-get install rhvoice rhvoice-russian
-
-# Или установка eSpeak
-sudo apt-get install espeak espeak-data
-
-# Для браузера может потребоваться:
-sudo apt-get install speech-dispatcher</pre>
-            </div>
-            
-            <div id="browser" class="platform-content">
-                <h4>Настройки браузера:</h4>
-                <p><strong>Google Chrome:</strong></p>
-                <ol>
-                    <li>Перейдите в <strong>chrome://flags/</strong></li>
-                    <li>Найдите "Experimental Web Platform features"</li>
-                    <li>Включите эту опцию</li>
-                    <li>Перезапустите браузер</li>
-                </ol>
-                <p><strong>Firefox:</strong> Голоса зависят от системы</p>
-                <p><strong>Edge:</strong> Использует голоса Windows</p>
-            </div>
+    <div class="app-container">
+        <!-- Шапка -->
+        <div class="header">
+            <h1><i class="fas fa-map-marker-alt"></i> Навигатор с командами</h1>
+            <div class="subtitle">Голосовые инструкции при приближении к точкам</div>
         </div>
-        
-        <div class="voice-controls">
-            <h3>Настройки голоса:</h3>
-            <div class="voice-test">
-                <label for="voiceSelect">Выберите голос:</label>
-                <select id="voiceSelect">
-                    <option value="">Загрузка голосов...</option>
-                </select>
-                <button id="refreshVoicesBtn">🔄 Обновить</button>
+
+        <!-- Основной контент -->
+        <div class="content">
+            <!-- Статус -->
+            <div class="card status-card slide-in" id="statusCard">
+                <div class="status-title"><i class="fas fa-info-circle"></i> Статус навигации</div>
+                <div class="status-content" id="statusText">Нажмите "Начать навигацию" для старта</div>
             </div>
-            
-            <div class="voice-stats" id="voiceStats">
-                <!-- Статистика будет загружена здесь -->
-            </div>
-            
-            <div class="voice-test">
-                <label for="voiceRate">Скорость:</label>
-                <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1">
-                <span id="rateValue">1.0</span>
-                
-                <label for="voicePitch" style="margin-left: 20px;">Высота:</label>
-                <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1">
-                <span id="pitchValue">1.0</span>
-                
-                <label for="voiceVolume" style="margin-left: 20px;">Громкость:</label>
-                <input type="range" id="voiceVolume" min="0" max="1" step="0.1" value="1">
-                <span id="volumeValue">1.0</span>
-            </div>
-            
-            <div class="voice-test">
-                <input type="text" id="testText" value="Тестовое сообщение для проверки голоса и настроек" 
-                       style="flex-grow: 1; padding: 8px;">
-                <button id="testVoiceBtn">▶ Произнести</button>
-                <button id="stopVoiceBtn">⏹ Остановить</button>
-            </div>
-            
-            <div class="voice-preview" id="voiceInfo">
-                Информация о голосе появится после загрузки
-            </div>
-        </div>
-        
-        <!-- Остальная часть интерфейса остается без изменений -->
-        <div>
-            <h3>Введите точки маршрута:</h3>
-            <textarea id="pointsInput">55.7520,37.6175,Идите к Спасской башне
+
+            <!-- Ввод точек -->
+            <div class="card slide-in">
+                <div class="card-title"><i class="fas fa-route"></i> Маршрут</div>
+                <div class="input-group">
+                    <label class="input-label">
+                        <i class="fas fa-map-pin"></i> Точки маршрута (широта,долгота,команда):
+                    </label>
+                    <textarea class="textarea" id="pointsInput" placeholder="Пример:
+55.7520,37.6175,Идите к Спасской башне
 55.7530,37.6190,Поверните налево к собору
 55.7540,37.6200,Подойдите к Царь-пушке
-55.7550,37.6210,Вы у цели - Успенский собор</textarea>
+55.7550,37.6210,Вы у цели - Успенский собор"></textarea>
+                </div>
+                <button class="button button-secondary" id="parsePointsBtn">
+                    <i class="fas fa-check"></i> Загрузить точки
+                </button>
+            </div>
+
+            <!-- Список точек -->
+            <div class="card slide-in">
+                <div class="card-title"><i class="fas fa-list-ol"></i> Точки маршрута</div>
+                <div class="points-list" id="pointsList">
+                    <!-- Точки будут здесь -->
+                </div>
+            </div>
+
+            <!-- Настройки голоса -->
+            <div class="card slide-in">
+                <div class="card-title"><i class="fas fa-volume-up"></i> Настройки голоса</div>
+                <div class="voice-controls">
+                    <select class="voice-select" id="voiceSelect">
+                        <option value="">Выбор голоса...</option>
+                    </select>
+                    <button class="button button-warning" id="testVoiceBtn">
+                        <i class="fas fa-play"></i> Тест
+                    </button>
+                </div>
+                <div style="margin-top: 15px; font-size: 14px; color: var(--gray);">
+                    <i class="fas fa-info-circle"></i> Для Android: настройки голоса в Система → Язык и ввод → Синтез речи
+                </div>
+            </div>
         </div>
-        
-        <div class="controls">
-            <button id="startBtn">▶ Начать навигацию</button>
-            <button id="stopBtn" disabled>⏹ Остановить</button>
-            <button id="getLocationBtn">📍 Получить местоположение</button>
+
+        <!-- Нижняя панель навигации -->
+        <div class="bottom-nav">
+            <button class="button button-primary" id="startBtn">
+                <i class="fas fa-play"></i> Старт
+            </button>
+            <button class="button button-danger" id="stopBtn" disabled>
+                <i class="fas fa-stop"></i> Стоп
+            </button>
+            <button class="button button-secondary" id="locationBtn">
+                <i class="fas fa-location-arrow"></i> Где я?
+            </button>
         </div>
-        
-        <div class="status" id="status">
-            Статус: Ожидание начала навигации
+    </div>
+
+    <!-- Модальное окно местоположения -->
+    <div class="modal" id="locationModal" style="display: none;">
+        <div class="modal-content">
+            <button class="modal-close" id="closeModalBtn">&times;</button>
+            <div class="modal-title"><i class="fas fa-map-marked-alt"></i> Текущее местоположение</div>
+            <div id="locationDetails" style="line-height: 1.6;">
+                Загрузка данных...
+            </div>
+            <button class="button button-primary" style="margin-top: 20px;" id="copyCoordsBtn">
+                <i class="fas fa-copy"></i> Копировать координаты
+            </button>
         </div>
-        
-        <div id="pointsList"></div>
     </div>
 
     <script>
+        // Глобальные переменные
         let watchId = null;
         let points = [];
         let currentPointIndex = 0;
         let isNavigating = false;
-        let speechSynthesis = window.speechSynthesis;
+        let speech = window.speechSynthesis;
         let voices = [];
         let selectedVoice = null;
-        
-        // Настройки голоса
-        let voiceSettings = {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0
-        };
+        let lastLocation = null;
+        let isSpeaking = false;
 
         // Элементы DOM
         const elements = {
             pointsInput: document.getElementById('pointsInput'),
+            pointsList: document.getElementById('pointsList'),
+            statusText: document.getElementById('statusText'),
+            statusCard: document.getElementById('statusCard'),
             startBtn: document.getElementById('startBtn'),
             stopBtn: document.getElementById('stopBtn'),
-            getLocationBtn: document.getElementById('getLocationBtn'),
-            statusDiv: document.getElementById('status'),
-            pointsListDiv: document.getElementById('pointsList'),
+            locationBtn: document.getElementById('locationBtn'),
+            parsePointsBtn: document.getElementById('parsePointsBtn'),
             voiceSelect: document.getElementById('voiceSelect'),
             testVoiceBtn: document.getElementById('testVoiceBtn'),
-            stopVoiceBtn: document.getElementById('stopVoiceBtn'),
-            refreshVoicesBtn: document.getElementById('refreshVoicesBtn'),
-            testText: document.getElementById('testText'),
-            voiceInfo: document.getElementById('voiceInfo'),
-            voiceStats: document.getElementById('voiceStats'),
-            voiceRate: document.getElementById('voiceRate'),
-            voicePitch: document.getElementById('voicePitch'),
-            voiceVolume: document.getElementById('voiceVolume'),
-            rateValue: document.getElementById('rateValue'),
-            pitchValue: document.getElementById('pitchValue'),
-            volumeValue: document.getElementById('volumeValue')
+            locationModal: document.getElementById('locationModal'),
+            locationDetails: document.getElementById('locationDetails'),
+            closeModalBtn: document.getElementById('closeModalBtn'),
+            copyCoordsBtn: document.getElementById('copyCoordsBtn')
         };
 
-        // Инициализация
-        document.addEventListener('DOMContentLoaded', () => {
-            initPlatformTabs();
-            initVoiceControls();
-            loadVoices();
-            parsePoints();
-            updatePointsList();
-            
-            // Периодически проверяем доступность новых голосов
-            setInterval(loadVoices, 30000);
-        });
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', initApp);
 
-        // Инициализация вкладок платформ
-        function initPlatformTabs() {
-            const tabs = document.querySelectorAll('.platform-tab');
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const platform = tab.dataset.platform;
-                    
-                    // Убираем активный класс у всех вкладок и контента
-                    document.querySelectorAll('.platform-tab').forEach(t => t.classList.remove('active'));
-                    document.querySelectorAll('.platform-content').forEach(c => c.classList.remove('active'));
-                    
-                    // Добавляем активный класс текущей вкладке и контенту
-                    tab.classList.add('active');
-                    document.getElementById(platform).classList.add('active');
-                });
-            });
+        function initApp() {
+            setupEventListeners();
+            loadVoices();
+            loadSavedData();
+            setupServiceWorker();
+            setupVibration();
+            
+            // Проверка поддержки геолокации
+            if (!navigator.geolocation) {
+                showError('Геолокация не поддерживается вашим устройством');
+            }
+            
+            // Проверка поддержки синтеза речи
+            if (!speech) {
+                showError('Синтез речи не поддерживается');
+            }
+            
+            // Автоматическая загрузка голосов через 1 секунду
+            setTimeout(loadVoices, 1000);
+            
+            // Проверка разрешений
+            checkPermissions();
         }
 
-        // Инициализация элементов управления голосом
-        function initVoiceControls() {
-            // Настройки скорости
-            elements.voiceRate.addEventListener('input', (e) => {
-                voiceSettings.rate = parseFloat(e.target.value);
-                elements.rateValue.textContent = voiceSettings.rate.toFixed(1);
+        function setupEventListeners() {
+            // Кнопки управления
+            elements.startBtn.addEventListener('click', startNavigation);
+            elements.stopBtn.addEventListener('click', stopNavigation);
+            elements.locationBtn.addEventListener('click', showCurrentLocation);
+            elements.parsePointsBtn.addEventListener('click', parsePoints);
+            elements.testVoiceBtn.addEventListener('click', testVoice);
+            elements.closeModalBtn.addEventListener('click', () => {
+                elements.locationModal.style.display = 'none';
             });
-
-            // Настройки высоты тона
-            elements.voicePitch.addEventListener('input', (e) => {
-                voiceSettings.pitch = parseFloat(e.target.value);
-                elements.pitchValue.textContent = voiceSettings.pitch.toFixed(1);
-            });
-
-            // Настройки громкости
-            elements.voiceVolume.addEventListener('input', (e) => {
-                voiceSettings.volume = parseFloat(e.target.value);
-                elements.volumeValue.textContent = voiceSettings.volume.toFixed(1);
-            });
-
-            // Тест голоса
-            elements.testVoiceBtn.addEventListener('click', () => {
-                speak(elements.testText.value, true);
-            });
-
-            // Остановить голос
-            elements.stopVoiceBtn.addEventListener('click', () => {
-                speechSynthesis.cancel();
-            });
-
-            // Обновить голоса
-            elements.refreshVoicesBtn.addEventListener('click', () => {
-                loadVoices();
-                showNotification('Голоса обновлены');
-            });
-
-            // Изменение выбранного голоса
+            elements.copyCoordsBtn.addEventListener('click', copyCoordinates);
+            
+            // Выбор голоса
             elements.voiceSelect.addEventListener('change', (e) => {
-                const voiceName = e.target.value;
-                selectedVoice = voices.find(voice => voice.name === voiceName);
-                updateVoiceInfo();
-                
+                selectedVoice = voices.find(v => v.name === e.target.value);
                 if (selectedVoice) {
-                    speak('Голос изменён', true);
+                    saveToStorage('selectedVoice', selectedVoice.name);
+                    showToast('Голос изменён');
                 }
             });
+            
+            // Загрузка голосов при изменении
+            speech.onvoiceschanged = loadVoices;
+            
+            // Предотвращение перезагрузки страницы
+            window.addEventListener('beforeunload', (e) => {
+                if (isNavigating) {
+                    e.preventDefault();
+                    e.returnValue = 'Навигация активна. Вы уверены, что хотите уйти?';
+                }
+            });
+            
+            // Обработка касаний
+            document.addEventListener('touchstart', function() {}, {passive: true});
         }
 
-        // Загрузка доступных голосов
         function loadVoices() {
-            // Получаем голоса
-            voices = speechSynthesis.getVoices();
-            
+            voices = speech.getVoices();
             if (voices.length === 0) {
                 setTimeout(loadVoices, 100);
                 return;
             }
             
             updateVoiceSelect();
-            updateVoiceStats();
             
-            // Автоматически выбираем мужской голос, если доступен
+            // Автовыбор русского мужского голоса
             if (!selectedVoice) {
                 selectPreferredVoice();
             }
-            
-            updateVoiceInfo();
         }
 
-        // Обновление выпадающего списка голосов
         function updateVoiceSelect() {
-            elements.voiceSelect.innerHTML = '';
+            elements.voiceSelect.innerHTML = '<option value="">Выбор голоса...</option>';
             
-            // Группируем голоса по языку
+            // Группируем по языкам
             const voicesByLang = {};
-            
             voices.forEach(voice => {
                 const lang = voice.lang || 'unknown';
-                if (!voicesByLang[lang]) {
-                    voicesByLang[lang] = [];
-                }
+                if (!voicesByLang[lang]) voicesByLang[lang] = [];
                 voicesByLang[lang].push(voice);
             });
             
-            // Сортируем языки
-            const sortedLangs = Object.keys(voicesByLang).sort();
-            
-            sortedLangs.forEach(lang => {
-                const langVoices = voicesByLang[lang];
-                
-                // Создаем группу для языка
+            // Добавляем голоса
+            Object.entries(voicesByLang).forEach(([lang, langVoices]) => {
                 const optgroup = document.createElement('optgroup');
                 optgroup.label = `${getLanguageName(lang)} (${langVoices.length})`;
                 
-                // Добавляем голоса в группу
                 langVoices.forEach(voice => {
                     const option = document.createElement('option');
                     option.value = voice.name;
                     option.textContent = `${voice.name}${voice.default ? ' (по умолчанию)' : ''}`;
                     
-                    // Выделяем мужские голоса
+                    // Пометка мужских голосов
                     if (isMaleVoice(voice)) {
                         option.style.fontWeight = 'bold';
                         option.textContent = '♂ ' + option.textContent;
-                    }
-                    
-                    // Выделяем женские голоса
-                    if (isFemaleVoice(voice)) {
-                        option.textContent = '♀ ' + option.textContent;
                     }
                     
                     if (selectedVoice && voice.name === selectedVoice.name) {
@@ -372,46 +708,34 @@ sudo apt-get install speech-dispatcher</pre>
             });
         }
 
-        // Автоматический выбор предпочтительного голоса
         function selectPreferredVoice() {
-            // Приоритеты:
-            // 1. Русские мужские голоса
-            // 2. Русские голоса
-            // 3. Английские мужские голоса
-            // 4. Голос по умолчанию
-            
-            const russianMaleVoices = voices.filter(voice => 
-                (voice.lang.startsWith('ru') || voice.lang.startsWith('ru-RU')) && 
-                isMaleVoice(voice)
-            );
-            
-            const russianVoices = voices.filter(voice => 
-                voice.lang.startsWith('ru') || voice.lang.startsWith('ru-RU')
-            );
-            
-            const englishMaleVoices = voices.filter(voice => 
-                (voice.lang.startsWith('en') || voice.lang.startsWith('en-')) && 
-                isMaleVoice(voice)
+            // Приоритет: русские мужские голоса
+            const russianMaleVoices = voices.filter(v => 
+                (v.lang.startsWith('ru') || v.lang.includes('Russian')) && 
+                isMaleVoice(v)
             );
             
             if (russianMaleVoices.length > 0) {
                 selectedVoice = russianMaleVoices[0];
-            } else if (russianVoices.length > 0) {
-                selectedVoice = russianVoices[0];
-            } else if (englishMaleVoices.length > 0) {
-                selectedVoice = englishMaleVoices[0];
             } else {
-                // Ищем голос по умолчанию
-                selectedVoice = voices.find(voice => voice.default) || voices[0];
+                // Любой русский голос
+                const russianVoices = voices.filter(v => 
+                    v.lang.startsWith('ru') || v.lang.includes('Russian')
+                );
+                if (russianVoices.length > 0) {
+                    selectedVoice = russianVoices[0];
+                } else {
+                    // Голос по умолчанию или первый доступный
+                    selectedVoice = voices.find(v => v.default) || voices[0];
+                }
             }
             
-            // Устанавливаем выбранный голос в select
             if (selectedVoice) {
                 elements.voiceSelect.value = selectedVoice.name;
+                saveToStorage('selectedVoice', selectedVoice.name);
             }
         }
 
-        // Проверка мужского голоса
         function isMaleVoice(voice) {
             const name = voice.name.toLowerCase();
             return name.includes('male') || 
@@ -419,159 +743,485 @@ sudo apt-get install speech-dispatcher</pre>
                    name.includes('pavel') ||
                    name.includes('dmitri') ||
                    name.includes('maxim') ||
-                   name.includes('alex') ||
-                   name.includes('mikhail') ||
-                   name.includes('male') ||
-                   name.includes('男人') ||
-                   name.includes('masculine');
+                   name.includes('alex');
         }
 
-        // Проверка женского голоса
-        function isFemaleVoice(voice) {
-            const name = voice.name.toLowerCase();
-            return name.includes('female') || 
-                   name.includes('женск') ||
-                   name.includes('irina') ||
-                   name.includes('anna') ||
-                   name.includes('natalia') ||
-                   name.includes('female') ||
-                   name.includes('女人') ||
-                   name.includes('feminine');
-        }
-
-        // Получение названия языка
-        function getLanguageName(langCode) {
-            const languages = {
+        function getLanguageName(lang) {
+            const map = {
                 'ru': 'Русский',
-                'ru-RU': 'Русский (Россия)',
+                'ru-RU': 'Русский',
                 'en': 'Английский',
-                'en-US': 'Английский (США)',
-                'en-GB': 'Английский (Великобритания)',
-                'de': 'Немецкий',
-                'fr': 'Французский',
-                'es': 'Испанский',
-                'it': 'Итальянский'
+                'en-US': 'Английский (США)'
             };
-            
-            return languages[langCode] || langCode;
+            return map[lang] || lang;
         }
 
-        // Обновление статистики голосов
-        function updateVoiceStats() {
-            const total = voices.length;
-            const russian = voices.filter(v => v.lang.startsWith('ru')).length;
-            const english = voices.filter(v => v.lang.startsWith('en')).length;
-            const male = voices.filter(isMaleVoice).length;
-            const female = voices.filter(isFemaleVoice).length;
-            const defaultVoices = voices.filter(v => v.default).length;
+        function parsePoints() {
+            const text = elements.pointsInput.value.trim();
+            if (!text) {
+                showError('Введите точки маршрута');
+                return;
+            }
             
-            elements.voiceStats.innerHTML = `
-                <div class="stat-item">
-                    <strong>Всего голосов:</strong> ${total}
-                </div>
-                <div class="stat-item">
-                    <strong>Русские:</strong> ${russian}
-                </div>
-                <div class="stat-item">
-                    <strong>Английские:</strong> ${english}
-                </div>
-                <div class="stat-item">
-                    <strong>♂ Мужские:</strong> ${male}
-                </div>
-                <div class="stat-item">
-                    <strong>♀ Женские:</strong> ${female}
-                </div>
-                <div class="stat-item">
-                    <strong>По умолчанию:</strong> ${defaultVoices}
-                </div>
-            `;
-        }
-
-        // Обновление информации о голосе
-        function updateVoiceInfo() {
-            if (selectedVoice) {
-                const isMale = isMaleVoice(selectedVoice);
-                const isFemale = isFemaleVoice(selectedVoice);
-                const gender = isMale ? 'Мужской' : (isFemale ? 'Женский' : 'Не определен');
+            const lines = text.split('\n');
+            points = [];
+            
+            lines.forEach((line, index) => {
+                line = line.trim();
+                if (!line) return;
                 
-                elements.voiceInfo.innerHTML = `
-                    <strong>Текущий голос:</strong> ${selectedVoice.name}<br>
-                    <strong>Язык:</strong> ${selectedVoice.lang} (${getLanguageName(selectedVoice.lang)})<br>
-                    <strong>Пол:</strong> ${gender}<br>
-                    <strong>По умолчанию:</strong> ${selectedVoice.default ? 'Да' : 'Нет'}<br>
-                    <strong>Локальный:</strong> ${selectedVoice.localService ? 'Да' : 'Нет'}
+                const parts = line.split(',');
+                if (parts.length >= 3) {
+                    const lat = parseFloat(parts[0].trim());
+                    const lng = parseFloat(parts[1].trim());
+                    const command = parts.slice(2).join(',').trim();
+                    
+                    if (!isNaN(lat) && !isNaN(lng) && command) {
+                        points.push({
+                            id: index + 1,
+                            lat: lat,
+                            lng: lng,
+                            command: command,
+                            completed: false,
+                            distance: null
+                        });
+                    }
+                }
+            });
+            
+            if (points.length === 0) {
+                showError('Нет корректных точек маршрута');
+                return;
+            }
+            
+            updatePointsList();
+            saveToStorage('points', points);
+            showToast(`Загружено ${points.length} точек`);
+            vibrate(100);
+        }
+
+        function updatePointsList() {
+            elements.pointsList.innerHTML = '';
+            
+            points.forEach((point, index) => {
+                const div = document.createElement('div');
+                div.className = 'point-item';
+                if (index === currentPointIndex && isNavigating) {
+                    div.classList.add('active');
+                }
+                if (point.completed) {
+                    div.classList.add('completed');
+                }
+                
+                div.innerHTML = `
+                    <div class="point-header">
+                        <div class="point-number">${point.id}</div>
+                        <div class="point-distance">${point.distance ? `${point.distance}m` : '?'}</div>
+                    </div>
+                    <div class="point-command">${point.command}</div>
+                    <div class="point-coords">
+                        <i class="fas fa-map-marker"></i> ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}
+                    </div>
+                    <div class="point-status">
+                        ${point.completed ? 
+                          '<i class="fas fa-check-circle" style="color: #4CAF50;"></i> Выполнено' : 
+                          (index === currentPointIndex ? 
+                           '<i class="fas fa-walking" style="color: #2196F3;"></i> Активная' : 
+                           '<i class="fas fa-clock" style="color: #FF9800;"></i> Ожидание')}
+                    </div>
                 `;
-            } else {
-                elements.voiceInfo.innerHTML = 'Голос не выбран';
+                
+                elements.pointsList.appendChild(div);
+            });
+            
+            // Прокрутка к активной точке
+            const activePoint = elements.pointsList.querySelector('.active');
+            if (activePoint) {
+                activePoint.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
 
-        // Функция для озвучивания текста
-        function speak(text, isTest = false) {
-            if (speechSynthesis.speaking) {
-                speechSynthesis.cancel();
+        function startNavigation() {
+            if (points.length === 0) {
+                showError('Сначала загрузите точки маршрута');
+                return;
             }
+            
+            if (!navigator.geolocation) {
+                showError('Геолокация не поддерживается');
+                return;
+            }
+            
+            // Запрос разрешения на геолокацию
+            navigator.permissions?.query({name: 'geolocation'}).then(result => {
+                if (result.state === 'denied') {
+                    showError('Доступ к геолокации запрещен. Разрешите доступ в настройках браузера.');
+                    return;
+                }
+            });
+            
+            isNavigating = true;
+            currentPointIndex = 0;
+            resetPoints();
+            
+            // Обновление UI
+            elements.startBtn.disabled = true;
+            elements.stopBtn.disabled = false;
+            updateStatus('Навигация начата. Идёт отслеживание местоположения...', 'info');
+            
+            // Начать отслеживание местоположения
+            watchId = navigator.geolocation.watchPosition(
+                handlePositionUpdate,
+                handleLocationError,
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 10000,
+                    timeout: 15000
+                }
+            );
+            
+            // Вибрация для подтверждения
+            vibrate([100, 50, 100]);
+            
+            // Приветственное сообщение
+            setTimeout(() => {
+                speak(`Навигация начата. Всего точек: ${points.length}. ${points[0].command}`);
+            }, 1000);
+        }
+
+        function stopNavigation() {
+            isNavigating = false;
+            
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            // Обновление UI
+            elements.startBtn.disabled = false;
+            elements.stopBtn.disabled = true;
+            updateStatus('Навигация остановлена', 'warning');
+            
+            // Прощальное сообщение
+            speak('Навигация остановлена');
+            vibrate([100, 100]);
+        }
+
+        function handlePositionUpdate(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            lastLocation = { lat, lng, accuracy };
+            
+            // Проверка завершения маршрута
+            if (currentPointIndex >= points.length) {
+                updateStatus('Маршрут завершен! Все точки пройдены.', 'success');
+                speak('Поздравляю! Вы прошли весь маршрут.');
+                stopNavigation();
+                vibrate([200, 100, 200]);
+                return;
+            }
+            
+            const currentPoint = points[currentPointIndex];
+            const distance = calculateDistance(lat, lng, currentPoint.lat, currentPoint.lng);
+            currentPoint.distance = Math.round(distance);
+            
+            // Обновление статуса
+            updateStatus(
+                `Точка ${currentPointIndex + 1}/${points.length}: ${currentPoint.command}<br>` +
+                `Расстояние: ${distance.toFixed(1)} м<br>` +
+                `Точность: ${accuracy.toFixed(1)} м`,
+                'info'
+            );
+            
+            // Проверка достижения точки
+            if (distance <= 20) {
+                onPointReached();
+            }
+            
+            // Обновление списка точек
+            updatePointsList();
+        }
+
+        function onPointReached() {
+            const point = points[currentPointIndex];
+            
+            // Отметка точки как выполненной
+            point.completed = true;
+            
+            // Озвучивание команды
+            speak(point.command);
+            
+            // Вибрация
+            vibrate([300, 100, 300]);
+            
+            // Переход к следующей точке
+            currentPointIndex++;
+            
+            if (currentPointIndex < points.length) {
+                const nextPoint = points[currentPointIndex];
+                setTimeout(() => {
+                    speak(`Следующая точка: ${nextPoint.command}`);
+                }, 2000);
+                
+                updateStatus(`Точка достигнута! Следующая: ${nextPoint.command}`, 'success');
+            }
+        }
+
+        function handleLocationError(error) {
+            let message = 'Ошибка геолокации: ';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Доступ к геолокации запрещен. Разрешите доступ в настройках браузера.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Информация о местоположении недоступна. Проверьте подключение к интернету.';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Время ожидания геолокации истекло.';
+                    break;
+                default:
+                    message = 'Неизвестная ошибка геолокации.';
+            }
+            
+            updateStatus(message, 'error');
+            showError(message);
+            
+            if (isNavigating) {
+                stopNavigation();
+            }
+        }
+
+        function speak(text) {
+            if (!speech || isSpeaking) return;
+            
+            isSpeaking = true;
+            
+            // Остановить текущую речь
+            speech.cancel();
             
             const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ru-RU';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
             
-            // Настройка голоса
-            utterance.voice = selectedVoice;
-            utterance.lang = selectedVoice ? selectedVoice.lang : 'ru-RU';
-            utterance.rate = voiceSettings.rate;
-            utterance.pitch = voiceSettings.pitch;
-            utterance.volume = voiceSettings.volume;
-            
-            // События для отладки
-            if (isTest) {
-                utterance.onstart = () => console.log('Начало речи:', text);
-                utterance.onend = () => console.log('Конец речи');
-                utterance.onerror = (event) => console.error('Ошибка речи:', event);
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
             }
             
-            speechSynthesis.speak(utterance);
+            utterance.onend = () => {
+                isSpeaking = false;
+            };
+            
+            utterance.onerror = () => {
+                isSpeaking = false;
+                console.error('Ошибка синтеза речи');
+            };
+            
+            speech.speak(utterance);
         }
 
-        // Показать уведомление
-        function showNotification(message) {
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #4CAF50;
-                color: white;
-                padding: 15px;
-                border-radius: 5px;
-                z-index: 1000;
-                animation: slideIn 0.3s ease;
-            `;
+        function testVoice() {
+            if (!selectedVoice) {
+                showError('Выберите голос для теста');
+                return;
+            }
             
-            notification.textContent = message;
-            document.body.appendChild(notification);
+            speak('Тестовое сообщение. Этот голос будет использоваться для навигации.');
+            vibrate(100);
+        }
+
+        function showCurrentLocation() {
+            if (!navigator.geolocation) {
+                showError('Геолокация не поддерживается');
+                return;
+            }
+            
+            updateStatus('Определение местоположения...', 'info');
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    
+                    elements.locationDetails.innerHTML = `
+                        <div style="margin-bottom: 15px;">
+                            <strong><i class="fas fa-map-pin"></i> Координаты:</strong><br>
+                            Широта: <code>${lat.toFixed(6)}</code><br>
+                            Долгота: <code>${lng.toFixed(6)}</code>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <strong><i class="fas fa-crosshairs"></i> Точность:</strong><br>
+                            ${accuracy.toFixed(1)} метров
+                        </div>
+                        <div>
+                            <strong><i class="fas fa-clock"></i> Время:</strong><br>
+                            ${new Date().toLocaleTimeString()}
+                        </div>
+                    `;
+                    
+                    elements.locationModal.style.display = 'flex';
+                    updateStatus('Местоположение определено', 'success');
+                },
+                (error) => {
+                    handleLocationError(error);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        function copyCoordinates() {
+            if (!lastLocation) return;
+            
+            const text = `${lastLocation.lat.toFixed(6)}, ${lastLocation.lng.toFixed(6)}`;
+            navigator.clipboard.writeText(text)
+                .then(() => showToast('Координаты скопированы'))
+                .catch(() => showToast('Не удалось скопировать'));
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Радиус Земли в метрах
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c;
+        }
+
+        function updateStatus(message, type = 'info') {
+            elements.statusText.innerHTML = message;
+            
+            // Обновление цвета карточки статуса
+            elements.statusCard.style.background = type === 'error' ? 
+                'linear-gradient(135deg, #ffcdd2, #ef9a9a)' :
+                type === 'success' ? 
+                'linear-gradient(135deg, #c8e6c9, #a5d6a7)' :
+                'linear-gradient(135deg, #ffecb3, #ffe082)';
+            
+            elements.statusCard.style.borderLeftColor = type === 'error' ? 
+                '#f44336' : type === 'success' ? '#4CAF50' : '#FF9800';
+        }
+
+        function showError(message) {
+            updateStatus(`<i class="fas fa-exclamation-triangle"></i> ${message}`, 'error');
+            vibrate([200, 100, 200]);
+        }
+
+        function showToast(message) {
+            // Удалить старый тост
+            const oldToast = document.querySelector('.toast');
+            if (oldToast) oldToast.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
             
             setTimeout(() => {
-                notification.style.animation = 'slideOut 0.3s ease';
-                setTimeout(() => notification.remove(), 300);
+                toast.style.animation = 'toastSlideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
-        // Добавляем стили для анимации
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
+        function vibrate(pattern) {
+            if (navigator.vibrate) {
+                navigator.vibrate(pattern);
             }
-            @keyframes slideOut {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(100%); opacity: 0; }
+        }
+
+        function resetPoints() {
+            points.forEach(point => {
+                point.completed = false;
+                point.distance = null;
+            });
+            updatePointsList();
+        }
+
+        function saveToStorage(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) {
+                console.warn('Не удалось сохранить в localStorage:', e);
             }
-        `;
-        document.head.appendChild(style);
+        }
 
-        // Остальные функции (парсинг точек, геолокация и т.д.) остаются без изменений
-        // ... (вставьте сюда функции из предыдущего кода, начиная с parsePoints)
+        function loadFromStorage(key) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : null;
+            } catch (e) {
+                console.warn('Не удалось загрузить из localStorage:', e);
+                return null;
+            }
+        }
 
+        function loadSavedData() {
+            // Загрузить точки
+            const savedPoints = loadFromStorage('points');
+            if (savedPoints && Array.isArray(savedPoints)) {
+                points = savedPoints;
+                elements.pointsInput.value = points.map(p => 
+                    `${p.lat},${p.lng},${p.command}`
+                ).join('\n');
+                updatePointsList();
+            }
+            
+            // Загрузить выбранный голос
+            const savedVoiceName = loadFromStorage('selectedVoice');
+            if (savedVoiceName) {
+                // Голос будет установлен после загрузки всех голосов
+                setTimeout(() => {
+                    const voice = voices.find(v => v.name === savedVoiceName);
+                    if (voice) {
+                        selectedVoice = voice;
+                        elements.voiceSelect.value = savedVoiceName;
+                    }
+                }, 1000);
+            }
+        }
+
+        function setupServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').catch(console.error);
+            }
+        }
+
+        function setupVibration() {
+            // Запрос разрешения на вибрацию (необходимо для некоторых браузеров)
+            if (navigator.vibrate && navigator.permissions) {
+                navigator.permissions.query({ name: 'vibration' }).catch(() => {});
+            }
+        }
+
+        function checkPermissions() {
+            // Проверка разрешений при загрузке
+            if (navigator.permissions) {
+                navigator.permissions.query({name: 'geolocation'}).then(result => {
+                    if (result.state === 'granted') {
+                        updateStatus('Доступ к геолокации разрешен', 'success');
+                    }
+                });
+            }
+        }
+
+        // Экспорт функций для отладки
+        window.app = {
+            speak,
+            vibrate,
+            calculateDistance,
+            points,
+            currentPointIndex,
+            isNavigating
+        };
     </script>
 </body>
 </html>
