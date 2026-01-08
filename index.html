@@ -29,6 +29,7 @@
             color: white;
             border: none;
             cursor: pointer;
+            border-radius: 4px;
         }
         button:disabled {
             background-color: #ccc;
@@ -58,12 +59,62 @@
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+        .voice-controls {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        select {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            min-width: 200px;
+        }
+        .voice-test {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+        label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .voice-preview {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Навигатор с голосовыми командами</h1>
+        
+        <div class="voice-controls">
+            <h3>Настройки голоса:</h3>
+            <div class="voice-test">
+                <label for="voiceSelect">Выберите голос:</label>
+                <select id="voiceSelect">
+                    <option value="">Загрузка голосов...</option>
+                </select>
+                <button id="refreshVoicesBtn">Обновить голоса</button>
+            </div>
+            <div class="voice-test">
+                <label>Тест голоса:</label>
+                <input type="text" id="testText" value="Тестовое сообщение для проверки голоса" style="flex-grow: 1; padding: 8px;">
+                <button id="testVoiceBtn">Произнести</button>
+            </div>
+            <div class="voice-preview" id="voiceInfo">
+                Информация о голосе появится после загрузки
+            </div>
+        </div>
         
         <div>
             <h3>Введите точки в формате:</h3>
@@ -77,7 +128,6 @@
         <div class="controls">
             <button id="startBtn">Начать навигацию</button>
             <button id="stopBtn" disabled>Остановить</button>
-            <button id="testBtn">Тест голоса</button>
             <button id="getLocationBtn">Получить текущее местоположение</button>
         </div>
         
@@ -94,25 +144,128 @@
         let currentPointIndex = 0;
         let isNavigating = false;
         let speechSynthesis = window.speechSynthesis;
+        let voices = [];
+        let selectedVoice = null;
 
         // Элементы DOM
         const pointsInput = document.getElementById('pointsInput');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const testBtn = document.getElementById('testBtn');
         const getLocationBtn = document.getElementById('getLocationBtn');
         const statusDiv = document.getElementById('status');
         const pointsListDiv = document.getElementById('pointsList');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const testVoiceBtn = document.getElementById('testVoiceBtn');
+        const refreshVoicesBtn = document.getElementById('refreshVoicesBtn');
+        const testText = document.getElementById('testText');
+        const voiceInfo = document.getElementById('voiceInfo');
 
-        // Пример точек по умолчанию (Москва, Кремль)
+        // Пример точек по умолчанию
         pointsInput.value = `55.7520,37.6175,Идите к Спасской башне
 55.7530,37.6190,Поверните налево к собору
 55.7540,37.6200,Подойдите к Царь-пушке
 55.7550,37.6210,Вы у цели - Успенский собор`;
 
+        // Загрузка доступных голосов
+        function loadVoices() {
+            voices = speechSynthesis.getVoices();
+            voiceSelect.innerHTML = '<option value="">Выберите голос...</option>';
+            
+            // Фильтруем русские голоса и мужские голоса
+            const russianVoices = voices.filter(voice => 
+                voice.lang.startsWith('ru') || 
+                voice.lang.startsWith('ru-RU') ||
+                voice.name.toLowerCase().includes('russian')
+            );
+            
+            // Сначала показываем мужские голоса
+            const maleVoices = russianVoices.filter(voice => 
+                voice.name.toLowerCase().includes('male') ||
+                voice.name.toLowerCase().includes('мужск') ||
+                voice.name.toLowerCase().includes('michael') ||
+                voice.name.toLowerCase().includes('alex') ||
+                voice.name.toLowerCase().includes('maxim')
+            );
+            
+            const otherVoices = russianVoices.filter(voice => 
+                !maleVoices.includes(voice)
+            );
+            
+            // Добавляем мужские голоса
+            if (maleVoices.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = 'Мужские голоса';
+                maleVoices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.name;
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    if (voice.name.toLowerCase().includes('male') || 
+                        voice.name.toLowerCase().includes('мужск')) {
+                        option.selected = true;
+                        selectedVoice = voice;
+                    }
+                    optgroup.appendChild(option);
+                });
+                voiceSelect.appendChild(optgroup);
+            }
+            
+            // Добавляем остальные голоса
+            if (otherVoices.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = 'Другие голоса';
+                otherVoices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.name;
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    optgroup.appendChild(option);
+                });
+                voiceSelect.appendChild(optgroup);
+            }
+            
+            // Если есть мужские голоса, выбираем первый по умолчанию
+            if (maleVoices.length > 0 && !selectedVoice) {
+                selectedVoice = maleVoices[0];
+                voiceSelect.value = selectedVoice.name;
+            }
+            
+            updateVoiceInfo();
+        }
+
+        // Обновление информации о выбранном голосе
+        function updateVoiceInfo() {
+            if (selectedVoice) {
+                voiceInfo.innerHTML = `
+                    <strong>Текущий голос:</strong> ${selectedVoice.name}<br>
+                    <strong>Язык:</strong> ${selectedVoice.lang}<br>
+                    <strong>Пол:</strong> ${selectedVoice.name.toLowerCase().includes('male') || 
+                                          selectedVoice.name.toLowerCase().includes('мужск') ? 
+                                          'Мужской' : 'Не указан'}
+                `;
+            } else {
+                voiceInfo.innerHTML = 'Голос не выбран';
+            }
+        }
+
         // Тест голоса
-        testBtn.addEventListener('click', () => {
-            speak('Тест голосового сообщения. Навигация работает!');
+        testVoiceBtn.addEventListener('click', () => {
+            speak(testText.value, true);
+        });
+
+        // Обновить список голосов
+        refreshVoicesBtn.addEventListener('click', () => {
+            loadVoices();
+        });
+
+        // Изменение выбранного голоса
+        voiceSelect.addEventListener('change', (e) => {
+            const voiceName = e.target.value;
+            selectedVoice = voices.find(voice => voice.name === voiceName);
+            updateVoiceInfo();
+            
+            // Произнести тестовое сообщение при смене голоса
+            if (selectedVoice) {
+                setTimeout(() => speak('Голос изменён', true), 100);
+            }
         });
 
         // Получить текущее местоположение
@@ -153,7 +306,6 @@
             statusDiv.innerHTML = `Навигация начата. Всего точек: ${points.length}<br>
             Текущая точка: ${points[0].command}`;
 
-            // Запросить разрешение на геолокацию и начать отслеживание
             if (navigator.geolocation) {
                 watchId = navigator.geolocation.watchPosition(
                     handlePositionUpdate,
@@ -173,7 +325,7 @@
         // Остановить навигацию
         stopBtn.addEventListener('click', stopNavigation);
 
-        // Парсинг точек из текстового поля
+        // Парсинг точек
         function parsePoints() {
             points = [];
             const lines = pointsInput.value.split('\n');
@@ -200,7 +352,7 @@
             });
         }
 
-        // Обновление списка точек в интерфейсе
+        // Обновление списка точек
         function updatePointsList() {
             pointsListDiv.innerHTML = '<h3>Маршрут:</h3>';
             points.forEach((point, index) => {
@@ -230,7 +382,7 @@
             const userLng = position.coords.longitude;
             
             if (currentPointIndex >= points.length) {
-                speak('Вы достигли конечной точки маршрута!');
+                speak('Вы достигли конечной точки маршрута!', false);
                 statusDiv.innerHTML = 'Маршрут завершен! Все точки пройдены.';
                 stopNavigation();
                 return;
@@ -252,17 +404,15 @@
                 Расстояние до точки: ${distance.toFixed(1)} метров
             `;
 
-            // Если приблизились к точке ближе 20 метров
             if (distance <= 20) {
-                speak(currentPoint.command);
+                speak(currentPoint.command, false);
                 currentPoint.completed = true;
                 
-                // Переходим к следующей точке
                 currentPointIndex++;
                 
                 if (currentPointIndex < points.length) {
                     setTimeout(() => {
-                        speak(`Следующая точка: ${points[currentPointIndex].command}`);
+                        speak(`Следующая точка: ${points[currentPointIndex].command}`, false);
                     }, 2000);
                 }
                 
@@ -308,7 +458,7 @@
         }
 
         // Функция для озвучивания текста
-        function speak(text) {
+        function speak(text, isTest = false) {
             if (speechSynthesis.speaking) {
                 speechSynthesis.cancel();
             }
@@ -316,15 +466,30 @@
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'ru-RU';
             utterance.rate = 1.0;
-            utterance.pitch = 1.0;
+            utterance.pitch = isTest ? 0.8 : 1.0; // Немного ниже для мужского голоса
             utterance.volume = 1.0;
             
+            // Используем выбранный голос, если доступен
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+            
             speechSynthesis.speak(utterance);
+            
+            // Логирование для отладки
+            if (isTest) {
+                console.log('Тест голоса:', {
+                    текст: text,
+                    голос: selectedVoice ? selectedVoice.name : 'по умолчанию',
+                    язык: utterance.lang,
+                    pitch: utterance.pitch
+                });
+            }
         }
 
-        // Расчет расстояния между двумя точками (метод гаверсинусов)
+        // Расчет расстояния
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371000; // Радиус Земли в метрах
+            const R = 6371000;
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -339,12 +504,17 @@
         }
 
         // Инициализация
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        
+        // Первоначальная загрузка голосов
+        setTimeout(loadVoices, 1000);
+        
         parsePoints();
         updatePointsList();
         
         // Предупреждение о необходимости HTTPS
         if (location.protocol !== 'https:') {
-            statusDiv.innerHTML = 'Внимание: Для работы геолокации рекомендуется использовать HTTPS соединение. Некоторые браузеры блокируют геолокацию на HTTP сайтах.';
+            statusDiv.innerHTML = 'Внимание: Для работы геолокации рекомендуется использовать HTTPS соединение.';
         }
     </script>
 </body>
