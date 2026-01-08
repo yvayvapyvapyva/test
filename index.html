@@ -1,621 +1,351 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <title>Яндекс Карта с вращаемыми точками</title>
-    <script src="https://api-maps.yandex.ru/2.1/?apikey=ваш_ключ_доступа&lang=ru_RU"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Навигатор с голосовыми командами</title>
     <style>
-        #map {
-            width: 100%;
-            height: 500px;
-        }
-        #controls {
-            padding: 10px;
-            background: #f5f5f5;
-            border-bottom: 1px solid #ccc;
+        body {
             font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        #angleControls {
+        .container {
             display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
+            flex-direction: column;
+            gap: 20px;
         }
-        #currentAngle {
-            font-weight: bold;
-            color: #0095b6;
-            font-size: 18px;
-            min-width: 60px;
-            text-align: center;
-        }
-        .angle-btn {
-            width: 40px;
-            height: 40px;
-            font-size: 20px;
-            font-weight: bold;
-            background: #0095b6;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .angle-btn:hover {
-            background: #007799;
-        }
-        .angle-btn:active {
-            background: #005577;
-        }
-        #stepInput {
-            width: 60px;
-            padding: 5px;
-            margin-left: 10px;
-        }
-        .point-info {
-            margin-top: 10px;
+        textarea {
+            width: 100%;
+            height: 150px;
             padding: 10px;
-            background: white;
-            border: 1px solid #ddd;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .point-item {
-            padding: 8px;
-            margin: 5px 0;
-            border: 1px solid #eee;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-        .point-item:hover {
-            background: #f0f8ff;
-        }
-        .point-item.active {
-            background: #e6f7ff;
-            border-color: #0095b6;
-            border-width: 2px;
-        }
-        .controls-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-        }
-        .instruction {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            padding: 8px;
-            border-radius: 4px;
-            margin: 10px 0;
             font-size: 14px;
         }
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 5px 10px;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
         }
-        .control-group label {
-            font-weight: bold;
-            color: #495057;
-            white-space: nowrap;
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+        .point-info {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+        .active {
+            border-left-color: #ff9800;
+            background-color: #fff3e0;
+        }
+        .completed {
+            border-left-color: #2196F3;
+            background-color: #e3f2fd;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
     </style>
 </head>
 <body>
-    <div id="controls">
-        <div class="controls-row">
-            <div class="control-group">
-                <label>Управление:</label>
-                <button class="angle-btn" id="angleLeftBtn">←</button>
-                <div>
-                    <strong>Угол: </strong><span id="currentAngle">0°</span>
-                </div>
-                <button class="angle-btn" id="angleRightBtn">→</button>
-                <div>
-                    <label>Шаг: 
-                        <input type="number" id="stepInput" min="1" max="90" value="5">
-                        °
-                    </label>
-                </div>
-            </div>
+    <div class="container">
+        <h1>Навигатор с голосовыми командами</h1>
+        
+        <div>
+            <h3>Введите точки в формате:</h3>
+            <p>широта,долгота,команда (каждая точка с новой строки)</p>
+            <textarea id="pointsInput" placeholder="Пример:
+55.7558,37.6173,Поверните направо
+55.7565,37.6180,Идите прямо 50 метров
+55.7570,37.6190,Ваш пункт назначения слева"></textarea>
         </div>
         
-        <div class="controls-row">
-            <button id="clearBtn" style="padding: 8px 16px;">Очистить все</button>
-            <button id="exportBtn" style="padding: 8px 16px; background: #28a745; color: white;">Экспорт в JSON</button>
+        <div class="controls">
+            <button id="startBtn">Начать навигацию</button>
+            <button id="stopBtn" disabled>Остановить</button>
+            <button id="testBtn">Тест голоса</button>
+            <button id="getLocationBtn">Получить текущее местоположение</button>
         </div>
         
-        <div class="instruction">
-            <strong>Управление:</strong> 
-            1. Кликните по карте чтобы добавить точку. 
-            2. Кликните по точке чтобы выбрать её. 
-            3. Используйте кнопки ← и → для вращения выбранной точки. 
-            4. Можно также использовать Alt + колесико мыши.
+        <div class="status" id="status">
+            Статус: Ожидание начала навигации
         </div>
         
-        <div id="pointsList" class="point-info"></div>
+        <div id="pointsList"></div>
     </div>
-    <div id="map"></div>
 
     <script>
-        // Инициализация карты после загрузки API
-        ymaps.ready(init);
-        
-        let map;
-        let myCollection;
-        let allPoints = [];
-        let activePointIndex = -1;
-        const ICON_SIZE = 56; // Увеличил размер для размещения номера
-        
-        function init() {
-            // Создаем карту
-            map = new ymaps.Map('map', {
-                center: [55.76, 37.64],
-                zoom: 10
-            });
-            
-            // Коллекция для хранения меток
-            myCollection = new ymaps.GeoObjectCollection();
-            
-            // Обработчик клика по карте
-            map.events.add('click', function (e) {
-                var coords = e.get('coords');
-                addPoint(coords, 0);
-            });
-            
-            // Обработчик колесика мыши для вращения (Alt + колесико)
-            map.container.events.add(['wheel', 'mousewheel'], function(e) {
-                if (e.altKey && activePointIndex !== -1) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    var delta = e.deltaY || e.detail || e.wheelDelta;
-                    var step = parseInt(document.getElementById('stepInput').value) || 5;
-                    var direction = delta > 0 ? -step : step;
-                    
-                    var point = allPoints[activePointIndex];
-                    var newAngle = (point.angle + direction + 360) % 360;
-                    
-                    updatePointAngle(activePointIndex, newAngle);
-                }
-            });
-            
-            // Обработчики кнопок вращения
-            document.getElementById('angleLeftBtn').addEventListener('click', function() {
-                rotateActivePoint(-1);
-            });
-            
-            document.getElementById('angleRightBtn').addEventListener('click', function() {
-                rotateActivePoint(1);
-            });
-            
-            // Обработчики клавиш стрелок
-            document.addEventListener('keydown', function(e) {
-                if (activePointIndex === -1) return;
-                
-                var step = parseInt(document.getElementById('stepInput').value) || 5;
-                
-                if (e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    rotateActivePoint(-1);
-                } else if (e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    rotateActivePoint(1);
-                }
-            });
-            
-            // Кнопка для очистки всех точек
-            document.getElementById('clearBtn').addEventListener('click', function() {
-                myCollection.removeAll();
-                allPoints = [];
-                activePointIndex = -1;
-                updateCurrentAngleDisplay(0);
-                updatePointsList();
-            });
-            
-            // Кнопка для экспорта данных
-            document.getElementById('exportBtn').addEventListener('click', function() {
-                exportToJSON();
-            });
-            
-            // Обработчик изменения шага вращения
-            document.getElementById('stepInput').addEventListener('change', function() {
-                var step = parseInt(this.value);
-                if (step < 1) this.value = 1;
-                if (step > 90) this.value = 90;
-            });
-        }
-        
-        // Функция вращения активной точки
-        function rotateActivePoint(direction) {
-            if (activePointIndex === -1) return;
-            
-            var point = allPoints[activePointIndex];
-            var step = parseInt(document.getElementById('stepInput').value) || 5;
-            var angleChange = direction > 0 ? step : -step;
-            var newAngle = (point.angle + angleChange + 360) % 360;
-            
-            updatePointAngle(activePointIndex, newAngle);
-        }
-        
-        // Функция добавления точки
-        function addPoint(coords, angle) {
-            var pointIndex = allPoints.length; // Номер новой точки
-            
-            // Создаем метку с указателем направления и номером
-            var myPlacemark = createPlacemarkWithAngle(coords, angle, pointIndex);
-            
-            // Добавляем метку в коллекцию и на карту
-            myCollection.add(myPlacemark);
-            map.geoObjects.add(myCollection);
-            
-            // Сохраняем данные точки
-            var pointData = {
-                coords: coords,
-                angle: angle,
-                placemark: myPlacemark,
-                id: Date.now() + Math.random(),
-                number: pointIndex + 1 // Сохраняем номер точки
-            };
-            allPoints.push(pointData);
-            
-            // Выбираем новую точку как активную
-            selectPoint(allPoints.length - 1);
-            
-            // Обновляем список точек
-            updatePointsList();
-        }
-        
-        // Функция создания красивой SVG стрелки с номером
-        function createArrowSVG(angle, pointNumber) {
-            return `
-                <svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 56 56">
-                    <defs>
-                        <!-- Градиент для стрелки -->
-                        <linearGradient id="arrowGradient" x1="50%" y1="0%" x2="50%" y2="100%">
-                            <stop offset="0%" stop-color="#ff6b6b" stop-opacity="0.9"/>
-                            <stop offset="100%" stop-color="#ee5a52" stop-opacity="0.9"/>
-                        </linearGradient>
-                        
-                        <!-- Градиент для наконечника -->
-                        <linearGradient id="tipGradient" x1="50%" y1="0%" x2="50%" y2="100%">
-                            <stop offset="0%" stop-color="#ff8a8a"/>
-                            <stop offset="100%" stop-color="#ff6b6b"/>
-                        </linearGradient>
-                        
-                        <!-- Градиент для круга с номером -->
-                        <linearGradient id="numberCircleGradient" x1="50%" y1="0%" x2="50%" y2="100%">
-                            <stop offset="0%" stop-color="#0095b6"/>
-                            <stop offset="100%" stop-color="#007799"/>
-                        </linearGradient>
-                        
-                        <!-- Фильтр тени -->
-                        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-                            <feDropShadow dx="1" dy="1" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
-                        </filter>
-                    </defs>
-                    
-                    <!-- Группа с вращением -->
-                    <g transform="rotate(${angle}, 28, 28)" filter="url(#shadow)">
-                        
-                        <!-- Основная линия стрелки -->
-                        <path d="M 28,10 L 28,40" 
-                              stroke="url(#arrowGradient)" 
-                              stroke-width="8" 
-                              stroke-linecap="round"
-                              stroke-linejoin="round"/>
-                        
-                        <!-- Наконечник стрелки -->
-                        <polygon points="24,16 32,16 28,8" 
-                                 fill="url(#tipGradient)"
-                                 stroke="#d32f2f"
-                                 stroke-width="1"/>
-                        
-                        <!-- Декоративный круг в основании стрелки -->
-                        <circle cx="28" cy="37" r="4" 
-                                fill="#ff4444" 
-                                stroke="#fff" 
-                                stroke-width="1.5"
-                                opacity="0.9"/>
-                        
-                        <!-- Внутренняя линия для объема -->
-                        <line x1="28" y1="12" x2="28" y2="34" 
-                              stroke="#fff" 
-                              stroke-width="2" 
-                              stroke-linecap="round"
-                              opacity="0.6"/>
-                        
-                        <!-- Декоративные полосы у основания -->
-                        <line x1="24" y1="35" x2="32" y2="35" 
-                              stroke="#fff" 
-                              stroke-width="3" 
-                              stroke-linecap="round"
-                              opacity="0.7"/>
-                    </g>
-                    
-                    <!-- Круг с номером точки (в центре, не вращается) -->
-                    <g>
-                        <!-- Фон круга -->
-                        <circle cx="28" cy="28" r="14" 
-                                fill="url(#numberCircleGradient)" 
-                                stroke="#fff" 
-                                stroke-width="2"
-                                opacity="0.95"
-                                filter="url(#shadow)"/>
-                        
-                        <!-- Белая обводка для лучшей читаемости -->
-                        <circle cx="28" cy="28" r="14" 
-                                fill="none" 
-                                stroke="#fff" 
-                                stroke-width="1"
-                                opacity="0.8"/>
-                        
-                        <!-- Номер точки -->
-                        <text x="28" y="32" 
-                              text-anchor="middle" 
-                              font-family="Arial, sans-serif" 
-                              font-size="14" 
-                              font-weight="bold" 
-                              fill="white"
-                              style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
-                            ${pointNumber}
-                        </text>
-                    </g>
-                    
-                    <!-- Тонкое кольцо вокруг иконки -->
-                    <circle cx="28" cy="28" r="26" 
-                            fill="none" 
-                            stroke="rgba(255,107,107,0.2)" 
-                            stroke-width="1"/>
-                </svg>
-            `;
-        }
-        
-        // Функция создания метки с указателем направления
-        function createPlacemarkWithAngle(coords, angle, pointIndex) {
-            var pointNumber = pointIndex + 1; // Нумерация с 1
-            var svg = createArrowSVG(angle, pointNumber);
-            var halfSize = Math.floor(ICON_SIZE / 2);
-            
-            // Создаем метку БЕЗ БАЛУНА
-            var myPlacemark = new ymaps.Placemark(coords, {
-                iconContent: svg,
-                hintContent: `Точка ${pointNumber}: ${coords[0].toFixed(5)}, ${coords[1].toFixed(5)} | Азимут: ${angle}°`
-            }, {
-                iconLayout: 'default#imageWithContent',
-                iconImageHref: '',
-                iconImageSize: [ICON_SIZE, ICON_SIZE],
-                iconImageOffset: [-halfSize, -halfSize],
-                draggable: true,
-                // Отключаем балун полностью
-                hasBalloon: false,
-                openBalloonOnClick: false,
-                hasHint: true // Оставляем подсказку при наведении
-            });
-            
-            // Обработчик перетаскивания метки
-            myPlacemark.events.add('dragend', function(e) {
-                var newCoords = myPlacemark.geometry.getCoordinates();
-                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
-                if (pointIndex !== -1) {
-                    allPoints[pointIndex].coords = newCoords;
-                    if (pointIndex === activePointIndex) {
-                        updateCurrentAngleDisplay(allPoints[pointIndex].angle);
+        let watchId = null;
+        let points = [];
+        let currentPointIndex = 0;
+        let isNavigating = false;
+        let speechSynthesis = window.speechSynthesis;
+
+        // Элементы DOM
+        const pointsInput = document.getElementById('pointsInput');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const testBtn = document.getElementById('testBtn');
+        const getLocationBtn = document.getElementById('getLocationBtn');
+        const statusDiv = document.getElementById('status');
+        const pointsListDiv = document.getElementById('pointsList');
+
+        // Пример точек по умолчанию (Москва, Кремль)
+        pointsInput.value = `55.7520,37.6175,Идите к Спасской башне
+55.7530,37.6190,Поверните налево к собору
+55.7540,37.6200,Подойдите к Царь-пушке
+55.7550,37.6210,Вы у цели - Успенский собор`;
+
+        // Тест голоса
+        testBtn.addEventListener('click', () => {
+            speak('Тест голосового сообщения. Навигация работает!');
+        });
+
+        // Получить текущее местоположение
+        getLocationBtn.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        statusDiv.innerHTML = `Текущее местоположение:<br>
+                        Широта: ${lat.toFixed(6)}<br>
+                        Долгота: ${lng.toFixed(6)}<br>
+                        Точность: ${position.coords.accuracy} метров`;
+                    },
+                    (error) => {
+                        statusDiv.innerHTML = `Ошибка получения геолокации: ${error.message}`;
                     }
-                    updatePointsList();
-                }
-            });
-            
-            // Обработчик клика по метке
-            myPlacemark.events.add('click', function(e) {
-                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
-                if (pointIndex !== -1) {
-                    selectPoint(pointIndex);
-                }
-                e.preventDefault();
-            });
-            
-            // Обработчик наведения на метку
-            myPlacemark.events.add('mouseenter', function(e) {
-                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
-                if (pointIndex !== -1 && pointIndex !== activePointIndex) {
-                    highlightPoint(pointIndex, true);
-                }
-            });
-            
-            myPlacemark.events.add('mouseleave', function(e) {
-                var pointIndex = allPoints.findIndex(p => p.placemark === myPlacemark);
-                if (pointIndex !== -1 && pointIndex !== activePointIndex) {
-                    highlightPoint(pointIndex, false);
-                }
-            });
-            
-            return myPlacemark;
-        }
-        
-        // Функция обновления угла точки
-        function updatePointAngle(index, newAngle) {
-            if (index < 0 || index >= allPoints.length) return;
-            
-            var point = allPoints[index];
-            var oldPlacemark = point.placemark;
-            
-            // Обновляем угол в данных
-            point.angle = newAngle;
-            
-            // Создаем НОВУЮ метку с обновленным углом
-            var newPlacemark = createPlacemarkWithAngle(point.coords, newAngle, index);
-            
-            // Заменяем старую метку на новую в коллекции
-            myCollection.remove(oldPlacemark);
-            myCollection.add(newPlacemark);
-            
-            // Обновляем ссылку на метку в данных
-            point.placemark = newPlacemark;
-            
-            // Обновляем подсказку
-            newPlacemark.properties.set('hintContent', 
-                `Точка ${index + 1}: ${point.coords[0].toFixed(5)}, ${point.coords[1].toFixed(5)} | Азимут: ${newAngle}°`);
-            
-            // Если эта точка активна, обновляем отображение
-            if (index === activePointIndex) {
-                updateCurrentAngleDisplay(newAngle);
+                );
+            } else {
+                statusDiv.innerHTML = 'Геолокация не поддерживается вашим браузером';
             }
-            
-            updatePointsList();
-        }
-        
-        // Функция выбора точки
-        function selectPoint(index) {
-            // Снимаем выделение с предыдущей активной точки
-            if (activePointIndex !== -1) {
-                highlightPoint(activePointIndex, false);
-            }
-            
-            // Устанавливаем новую активную точку
-            activePointIndex = index;
-            
-            // Выделяем новую активную точку
-            if (activePointIndex !== -1) {
-                highlightPoint(activePointIndex, true);
-                var point = allPoints[activePointIndex];
-                updateCurrentAngleDisplay(point.angle);
-            }
-            
-            updatePointsList();
-        }
-        
-        // Функция выделения точки
-        function highlightPoint(index, highlight) {
-            var pointItem = document.querySelector(`.point-item[data-index="${index}"]`);
-            if (pointItem) {
-                pointItem.classList.toggle('active', highlight);
-            }
-        }
-        
-        // Функция обновления отображения текущего угла
-        function updateCurrentAngleDisplay(angle) {
-            document.getElementById('currentAngle').textContent = angle + '°';
-        }
-        
-        // Функция обновления списка точек
-        function updatePointsList() {
-            var pointsList = document.getElementById('pointsList');
-            pointsList.innerHTML = '';
-            
-            if (allPoints.length === 0) {
-                pointsList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Точек пока нет</div>';
+        });
+
+        // Начать навигацию
+        startBtn.addEventListener('click', () => {
+            parsePoints();
+            if (points.length === 0) {
+                statusDiv.innerHTML = 'Ошибка: нет точек для навигации';
                 return;
             }
+
+            isNavigating = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            currentPointIndex = 0;
             
-            var html = '<div style="margin-bottom: 10px; font-weight: bold; color: #0095b6;">Список точек (кликните для выбора):</div>';
-            allPoints.forEach(function(point, index) {
-                var isActive = index === activePointIndex;
-                html += `
-                    <div class="point-item ${isActive ? 'active' : ''}" 
-                         data-index="${index}"
-                         onclick="selectPoint(${index})"
-                         style="cursor: pointer; padding: 10px; margin: 8px 0; border: 2px solid ${isActive ? '#0095b6' : '#eee'}; background: ${isActive ? '#e6f7ff' : 'white'}">
-                        <div style="display: flex; justify-content: space-between; align-items: start;">
-                            <div style="flex: 1;">
-                                <strong style="color: ${isActive ? '#0095b6' : '#333'}">Точка ${index + 1}${isActive ? ' (активна)' : ''}</strong><br>
-                                <div style="font-size: 12px; margin-top: 5px;">
-                                    Ш: ${point.coords[0].toFixed(6)}<br>
-                                    Д: ${point.coords[1].toFixed(6)}<br>
-                                    Азимут: <span style="color: #ff4444; font-weight: bold;">${point.angle}°</span>
-                                </div>
-                            </div>
-                            <button onclick="removePoint(${index}); event.stopPropagation();" 
-                                    style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                `;
+            updatePointsList();
+            statusDiv.innerHTML = `Навигация начата. Всего точек: ${points.length}<br>
+            Текущая точка: ${points[0].command}`;
+
+            // Запросить разрешение на геолокацию и начать отслеживание
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(
+                    handlePositionUpdate,
+                    handleLocationError,
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 30000,
+                        timeout: 27000
+                    }
+                );
+            } else {
+                statusDiv.innerHTML = 'Геолокация не поддерживается вашим браузером';
+                stopNavigation();
+            }
+        });
+
+        // Остановить навигацию
+        stopBtn.addEventListener('click', stopNavigation);
+
+        // Парсинг точек из текстового поля
+        function parsePoints() {
+            points = [];
+            const lines = pointsInput.value.split('\n');
+            
+            lines.forEach(line => {
+                line = line.trim();
+                if (line) {
+                    const parts = line.split(',');
+                    if (parts.length >= 3) {
+                        const lat = parseFloat(parts[0]);
+                        const lng = parseFloat(parts[1]);
+                        const command = parts.slice(2).join(',').trim();
+                        
+                        if (!isNaN(lat) && !isNaN(lng) && command) {
+                            points.push({
+                                lat: lat,
+                                lng: lng,
+                                command: command,
+                                completed: false
+                            });
+                        }
+                    }
+                }
             });
-            
-            pointsList.innerHTML = html;
         }
-        
-        // Функция удаления точки
-        function removePoint(index) {
-            if (index >= 0 && index < allPoints.length) {
-                myCollection.remove(allPoints[index].placemark);
-                allPoints.splice(index, 1);
+
+        // Обновление списка точек в интерфейсе
+        function updatePointsList() {
+            pointsListDiv.innerHTML = '<h3>Маршрут:</h3>';
+            points.forEach((point, index) => {
+                const div = document.createElement('div');
+                div.className = 'point-info';
                 
-                // Перенумеровываем оставшиеся точки
-                for (let i = index; i < allPoints.length; i++) {
-                    updatePointNumber(i);
+                if (index === currentPointIndex && isNavigating) {
+                    div.classList.add('active');
+                } else if (point.completed) {
+                    div.classList.add('completed');
                 }
                 
-                if (activePointIndex === index) {
-                    activePointIndex = -1;
-                    updateCurrentAngleDisplay(0);
-                } else if (activePointIndex > index) {
-                    activePointIndex--;
+                div.innerHTML = `
+                    <strong>Точка ${index + 1}:</strong><br>
+                    Координаты: ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}<br>
+                    Команда: ${point.command}<br>
+                    Статус: ${point.completed ? 'Выполнено' : (index === currentPointIndex ? 'Активная' : 'В ожидании')}
+                `;
+                
+                pointsListDiv.appendChild(div);
+            });
+        }
+
+        // Обработка обновления позиции
+        function handlePositionUpdate(position) {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+            
+            if (currentPointIndex >= points.length) {
+                speak('Вы достигли конечной точки маршрута!');
+                statusDiv.innerHTML = 'Маршрут завершен! Все точки пройдены.';
+                stopNavigation();
+                return;
+            }
+
+            const currentPoint = points[currentPointIndex];
+            const distance = calculateDistance(
+                userLat, userLng,
+                currentPoint.lat, currentPoint.lng
+            );
+
+            statusDiv.innerHTML = `
+                Текущее местоположение:<br>
+                Широта: ${userLat.toFixed(6)}<br>
+                Долгота: ${userLng.toFixed(6)}<br>
+                Точность: ${position.coords.accuracy.toFixed(1)} метров<br><br>
+                Текущая точка ${currentPointIndex + 1}/${points.length}:<br>
+                ${currentPoint.command}<br>
+                Расстояние до точки: ${distance.toFixed(1)} метров
+            `;
+
+            // Если приблизились к точке ближе 20 метров
+            if (distance <= 20) {
+                speak(currentPoint.command);
+                currentPoint.completed = true;
+                
+                // Переходим к следующей точке
+                currentPointIndex++;
+                
+                if (currentPointIndex < points.length) {
+                    setTimeout(() => {
+                        speak(`Следующая точка: ${points[currentPointIndex].command}`);
+                    }, 2000);
                 }
                 
                 updatePointsList();
             }
         }
-        
-        // Функция обновления номера точки
-        function updatePointNumber(index) {
-            var point = allPoints[index];
-            var newAngle = point.angle;
+
+        // Обработка ошибок геолокации
+        function handleLocationError(error) {
+            let message = 'Ошибка геолокации: ';
             
-            // Создаем новую метку с правильным номером
-            var newPlacemark = createPlacemarkWithAngle(point.coords, newAngle, index);
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message += 'Пользователь отказал в доступе к геолокации';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message += 'Информация о местоположении недоступна';
+                    break;
+                case error.TIMEOUT:
+                    message += 'Время запроса геолокации истекло';
+                    break;
+                default:
+                    message += 'Неизвестная ошибка';
+                    break;
+            }
             
-            // Заменяем старую метку на новую
-            myCollection.remove(point.placemark);
-            myCollection.add(newPlacemark);
-            
-            // Обновляем ссылку на метку
-            point.placemark = newPlacemark;
-            point.number = index + 1;
+            statusDiv.innerHTML = message;
+            stopNavigation();
         }
-        
-        // Функция экспорта данных в JSON
-        function exportToJSON() {
-            var exportData = allPoints.map(function(point, index) {
-                return {
-                    id: index + 1,
-                    number: point.number,
-                    latitude: point.coords[0],
-                    longitude: point.coords[1],
-                    azimuth: point.angle,
-                    coords: point.coords,
-                    angle: point.angle
-                };
-            });
+
+        // Остановка навигации
+        function stopNavigation() {
+            isNavigating = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
             
-            var jsonStr = JSON.stringify(exportData, null, 2);
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
             
-            // Создаем временный элемент для копирования
-            var textarea = document.createElement('textarea');
-            textarea.value = jsonStr;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            
-            alert('Данные скопированы в буфер обмена!\n\n' + jsonStr);
-            
-            // Также выводим в консоль
-            console.log('Экспортированные данные:', exportData);
+            statusDiv.innerHTML = 'Навигация остановлена';
         }
+
+        // Функция для озвучивания текста
+        function speak(text) {
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ru-RU';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            speechSynthesis.speak(utterance);
+        }
+
+        // Расчет расстояния между двумя точками (метод гаверсинусов)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Радиус Земли в метрах
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c;
+        }
+
+        // Инициализация
+        parsePoints();
+        updatePointsList();
         
-        // Экспортируем функции для использования в HTML
-        window.selectPoint = selectPoint;
-        window.removePoint = removePoint;
-        window.exportToJSON = exportToJSON;
+        // Предупреждение о необходимости HTTPS
+        if (location.protocol !== 'https:') {
+            statusDiv.innerHTML = 'Внимание: Для работы геолокации рекомендуется использовать HTTPS соединение. Некоторые браузеры блокируют геолокацию на HTTP сайтах.';
+        }
     </script>
 </body>
 </html>
