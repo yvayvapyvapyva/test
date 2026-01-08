@@ -206,6 +206,27 @@
         function handleOrientation(event) {
             // alpha - азимут компаса (0-360°)
             // 0° = север, 90° = восток, 180° = юг, 270° = запад
+            let heading = null;
+            
+            // Для iOS Safari используем webkitCompassHeading (более точный)
+            if (event.webkitCompassHeading !== undefined && 
+                event.webkitCompassHeading !== null && 
+                !isNaN(event.webkitCompassHeading)) {
+                heading = event.webkitCompassHeading;
+            } 
+            // Для других устройств используем alpha
+            else if (event.alpha !== null && event.alpha !== undefined && !isNaN(event.alpha)) {
+                heading = event.alpha;
+            }
+            
+            if (heading !== null && heading !== undefined) {
+                currentHeading = heading;
+                updateHeading();
+            }
+        }
+
+        function handleOrientationAbsolute(event) {
+            // Абсолютная ориентация (предпочтительно для iOS)
             if (event.alpha !== null && event.alpha !== undefined && !isNaN(event.alpha)) {
                 currentHeading = event.alpha;
                 updateHeading();
@@ -219,27 +240,44 @@
             }
 
             // Запускаем отслеживание ориентации устройства (компас)
-            if (window.DeviceOrientationEvent) {
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            function startCompass() {
+                // Проверяем поддержку абсолютной ориентации (предпочтительно для iOS)
+                if (typeof DeviceOrientationEvent !== 'undefined' && 
+                    typeof DeviceOrientationEvent.requestPermission === 'function') {
                     // iOS 13+ требует разрешения
                     DeviceOrientationEvent.requestPermission()
                         .then(response => {
                             if (response === 'granted') {
-                                window.addEventListener('deviceorientation', handleOrientation);
+                                // Пробуем использовать абсолютную ориентацию
+                                if (window.DeviceOrientationEvent && 
+                                    typeof DeviceOrientationEvent.requestPermission === 'function') {
+                                    // Для iOS используем deviceorientation с webkitCompassHeading
+                                    window.addEventListener('deviceorientation', handleOrientation, true);
+                                } else {
+                                    window.addEventListener('deviceorientation', handleOrientation);
+                                }
                             } else {
-                                updateStatus('Доступ к компасу запрещен', 'error');
+                                updateStatus('Доступ к компасу запрещен. Разрешите доступ в настройках.', 'error');
                             }
                         })
                         .catch(error => {
+                            console.error('Ошибка запроса разрешения компаса:', error);
                             updateStatus('Ошибка доступа к компасу', 'error');
                         });
                 } else {
                     // Android и другие браузеры
-                    window.addEventListener('deviceorientation', handleOrientation);
+                    // Пробуем абсолютную ориентацию сначала
+                    if (window.DeviceOrientationEvent) {
+                        window.addEventListener('deviceorientationabsolute', handleOrientationAbsolute);
+                        // Также слушаем обычную ориентацию как запасной вариант
+                        window.addEventListener('deviceorientation', handleOrientation);
+                    } else {
+                        updateStatus('Компас не поддерживается', 'error');
+                    }
                 }
-            } else {
-                updateStatus('Компас не поддерживается', 'error');
             }
+            
+            startCompass();
 
             const options = {
                 enableHighAccuracy: true,
@@ -269,6 +307,7 @@
             }
             // Останавливаем отслеживание ориентации
             window.removeEventListener('deviceorientation', handleOrientation);
+            window.removeEventListener('deviceorientationabsolute', handleOrientationAbsolute);
             currentHeading = null;
             headingEl.textContent = '-';
             isTracking = false;
