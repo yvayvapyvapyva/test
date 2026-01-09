@@ -1,352 +1,231 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Отслеживание местоположения</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            background: #1a1a1a;
-            color: #fff;
-            padding: 10px;
-            overflow-x: hidden;
-        }
-        .container {
-            max-width: 100%;
-        }
-        h1 {
-            font-size: 18px;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        .status {
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 14px;
-        }
-        .status.active {
-            background: #4CAF50;
-        }
-        .status.error {
-            background: #f44336;
-        }
-        .status.waiting {
-            background: #ff9800;
-        }
-        .info {
-            background: #2a2a2a;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-        .info-item {
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-        .info-label {
-            color: #aaa;
-            font-size: 12px;
-        }
-        .info-value {
-            color: #fff;
-            font-weight: bold;
-            word-break: break-all;
-        }
-        #map {
-            width: 100%;
-            height: 300px;
-            border-radius: 5px;
-            margin-top: 10px;
-            background: #2a2a2a;
-        }
-        .button {
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .button:active {
-            background: #45a049;
-        }
-        .button.stop {
-            background: #f44336;
-        }
-        .button.stop:active {
-            background: #da190b;
-        }
-    </style>
+<meta charset="utf-8">
+<title>Редактор маршрутов</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
+
+<style>
+html,body{margin:0;height:100%;font-family:Arial}
+#map{position:absolute;inset:0}
+
+#panel{
+    position:absolute;right:10px;top:10px;z-index:10;
+    width:320px;max-height:90%;
+    background:rgba(255,255,255,.95);
+    border-radius:8px;padding:8px;overflow:auto
+}
+
+#list div{
+    padding:6px;
+    border-bottom:1px solid #ddd;
+    cursor:pointer;
+    word-break: break-word;
+    white-space: pre-wrap; /* переносы строк отображаются */
+}
+#list div.active{
+    background:#d0f5d0;font-weight:bold
+}
+
+button, input, textarea{
+    width:100%;
+    margin-top:5px;
+    box-sizing: border-box;
+}
+
+textarea{
+    resize: vertical;
+}
+
+.az-btns button{
+    width:48%;font-size:18px
+}
+
+.coord {
+    margin-top: 5px;
+    font-size: 14px;
+    color: #333;
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>📍 Отслеживание местоположения</h1>
-        <div id="status" class="status waiting">Ожидание разрешения...</div>
-        
-        <div class="info">
-            <div class="info-item">
-                <div class="info-label">Широта:</div>
-                <div class="info-value" id="latitude">-</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Долгота:</div>
-                <div class="info-value" id="longitude">-</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Точность:</div>
-                <div class="info-value" id="accuracy">-</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Скорость:</div>
-                <div class="info-value" id="speed">-</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Азимут (направление):</div>
-                <div class="info-value" id="heading">-</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Время обновления:</div>
-                <div class="info-value" id="timestamp">-</div>
-            </div>
-        </div>
 
-        <iframe id="map" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>
-        
-        <button id="toggleBtn" class="button">Начать отслеживание</button>
-    </div>
+<div id="map"></div>
 
-    <script>
-        let watchId = null;
-        let isTracking = false;
-        let currentHeading = null; // Азимут с компаса
-        const updateInterval = 5000; // 5 секунд
+<div id="panel">
+<b>Маршрут</b>
+<div id="list"></div>
 
-        const statusEl = document.getElementById('status');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const latitudeEl = document.getElementById('latitude');
-        const longitudeEl = document.getElementById('longitude');
-        const accuracyEl = document.getElementById('accuracy');
-        const speedEl = document.getElementById('speed');
-        const headingEl = document.getElementById('heading');
-        const timestampEl = document.getElementById('timestamp');
-        const mapEl = document.getElementById('map');
+<hr>
+<b>Точка</b>
+<textarea id="cmd" placeholder="Команда" rows="3"></textarea>
+<div class="az-btns">
+<button onclick="rotate(-10)">⟲ −10°</button>
+<button onclick="rotate(10)">⟳ +10°</button>
+</div>
+<input id="az" type="number" placeholder="Азимут">
 
-        function updateStatus(text, className) {
-            statusEl.textContent = text;
-            statusEl.className = 'status ' + className;
-        }
+<div class="coord" id="coord">Координаты: — , —</div>
 
-        function getDirectionName(heading) {
-            if (heading === null || heading === undefined || isNaN(heading)) return 'N/A';
-            const directions = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
-            const index = Math.round(heading / 45) % 8;
-            return directions[index];
-        }
+<button onclick="removePoint()">Удалить точку</button>
+<button onclick="exportJSON()">Экспорт JSON</button>
+</div>
 
-        function updateHeading() {
-            if (currentHeading !== null && currentHeading !== undefined && !isNaN(currentHeading)) {
-                headingEl.textContent = currentHeading.toFixed(1) + '° (' + getDirectionName(currentHeading) + ')';
-            } else {
-                headingEl.textContent = 'N/A';
-            }
-        }
+<script>
+let map;
+let points=[];
+let current=null;
 
-        function updateLocation(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const acc = position.coords.accuracy;
-            const spd = position.coords.speed;
+/* INIT */
+ymaps.ready(()=>{
+    map=new ymaps.Map("map",{
+        center:[56.3399,43.9332],
+        zoom:18,
+        type:'yandex#satellite',
+        controls:[]
+    });
 
-            latitudeEl.textContent = lat.toFixed(6) + '°';
-            longitudeEl.textContent = lon.toFixed(6) + '°';
-            accuracyEl.textContent = acc ? acc.toFixed(0) + ' м' : 'N/A';
-            speedEl.textContent = spd ? (spd * 3.6).toFixed(1) + ' км/ч' : '0 км/ч';
-            
-            // Обновляем азимут из компаса
-            updateHeading();
-            
-            timestampEl.textContent = new Date(position.timestamp).toLocaleTimeString('ru-RU');
+    map.events.add('click',e=>{
+        const c=e.get('coords');
+        addPoint(c);
+    });
+});
 
-            // Обновление карты
-            const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lon-0.01},${lat-0.01},${lon+0.01},${lat+0.01}&layer=mapnik&marker=${lat},${lon}`;
-            mapEl.src = mapUrl;
+/* SVG с цифрой внутри стрелки */
+function arrowSVG(a,color,id){
+    return 'data:image/svg+xml;utf8,'+encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+<g transform="rotate(${a},20,20)">
+<polygon points="20,2 28,30 20,24 12,30" fill="${color}"/>
+</g>
+<text x="20" y="22" font-size="14" text-anchor="middle" fill="white" font-weight="bold">${id}</text>
+</svg>`);
+}
 
-            updateStatus('Отслеживание активно', 'active');
-        }
+/* ADD POINT */
+function addPoint(coords){
+    const id = points.length ? points[points.length-1].id + 1 : 1;
+    const p = {
+        id,
+        lat: coords[0],
+        lon: coords[1],
+        azimuth: 0,
+        text: ''
+    };
 
-        function handleError(error) {
-            let message = 'Ошибка получения местоположения';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    message = 'Доступ к геолокации запрещен';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    message = 'Местоположение недоступно';
-                    break;
-                case error.TIMEOUT:
-                    message = 'Превышено время ожидания';
-                    break;
-            }
-            updateStatus(message, 'error');
-        }
+    p.pm = new ymaps.Placemark(coords, {}, {
+        iconLayout: 'default#image',
+        iconImageHref: arrowSVG(0,'blue',id),
+        iconImageSize: [40,40],
+        iconImageOffset: [-20,-20],
+        draggable: true
+    });
 
-        function handleOrientation(event) {
-            // alpha - азимут компаса (0-360°)
-            // 0° = север, 90° = восток, 180° = юг, 270° = запад
-            let heading = null;
-            
-            // Для iOS Safari используем webkitCompassHeading (более точный)
-            if (event.webkitCompassHeading !== undefined && 
-                event.webkitCompassHeading !== null && 
-                !isNaN(event.webkitCompassHeading)) {
-                heading = event.webkitCompassHeading;
-            } 
-            // Для других устройств используем alpha
-            else if (event.alpha !== null && event.alpha !== undefined && !isNaN(event.alpha)) {
-                heading = event.alpha;
-            }
-            
-            if (heading !== null && heading !== undefined) {
-                currentHeading = heading;
-                updateHeading();
-            }
-        }
+    // Клик по метке — переключение на точку
+    p.pm.events.add('click', () => selectPoint(p));
 
-        function handleOrientationAbsolute(event) {
-            // Абсолютная ориентация (предпочтительно для iOS)
-            if (event.alpha !== null && event.alpha !== undefined && !isNaN(event.alpha)) {
-                currentHeading = event.alpha;
-                updateHeading();
-            }
-        }
+    // При начале перетаскивания выделяем точку
+    p.pm.events.add('dragstart', () => selectPoint(p));
 
-        function startTracking() {
-            if (!navigator.geolocation) {
-                updateStatus('Геолокация не поддерживается', 'error');
-                return;
-            }
+    // Обновление координат после перемещения
+    p.pm.events.add('geometrychange', () => {
+        const newCoords = p.pm.geometry.getCoordinates();
+        p.lat = newCoords[0];
+        p.lon = newCoords[1];
+        selectPoint(p); // переключаем редактор на эту точку
+    });
 
-            // Запускаем отслеживание ориентации устройства (компас)
-            function startCompass() {
-                // Проверяем поддержку абсолютной ориентации (предпочтительно для iOS)
-                if (typeof DeviceOrientationEvent !== 'undefined' && 
-                    typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    // iOS 13+ требует разрешения
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => {
-                            if (response === 'granted') {
-                                // Пробуем использовать абсолютную ориентацию
-                                if (window.DeviceOrientationEvent && 
-                                    typeof DeviceOrientationEvent.requestPermission === 'function') {
-                                    // Для iOS используем deviceorientation с webkitCompassHeading
-                                    window.addEventListener('deviceorientation', handleOrientation, true);
-                                } else {
-                                    window.addEventListener('deviceorientation', handleOrientation);
-                                }
-                            } else {
-                                updateStatus('Доступ к компасу запрещен. Разрешите доступ в настройках.', 'error');
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Ошибка запроса разрешения компаса:', error);
-                            updateStatus('Ошибка доступа к компасу', 'error');
-                        });
-                } else {
-                    // Android и другие браузеры
-                    // Пробуем абсолютную ориентацию сначала
-                    if (window.DeviceOrientationEvent) {
-                        window.addEventListener('deviceorientationabsolute', handleOrientationAbsolute);
-                        // Также слушаем обычную ориентацию как запасной вариант
-                        window.addEventListener('deviceorientation', handleOrientation);
-                    } else {
-                        updateStatus('Компас не поддерживается', 'error');
-                    }
-                }
-            }
-            
-            startCompass();
+    map.geoObjects.add(p.pm);
+    points.push(p);
+    selectPoint(p);
+    renderList();
+}
 
-            const options = {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            };
+/* SELECT POINT */
+function selectPoint(p){
+    current = p;
+    cmd.value = p.text; // Полностью показываем команду
+    az.value = p.azimuth;
+    renderList();
+    updateMarker(p);
+    updateCoord();
+}
 
-            // Получаем текущее местоположение сразу
-            navigator.geolocation.getCurrentPosition(updateLocation, handleError, options);
+function renderList(){
+    list.innerHTML = '';
+    points.forEach(p=>{
+        const d = document.createElement('div');
+        d.textContent = `${p.id}. ${p.text || '(без команды)'}`; // Полный текст команды
+        if(p===current) d.classList.add('active');
+        d.onclick = ()=>selectPoint(p);
+        list.appendChild(d);
+    });
+}
 
-            // Начинаем отслеживание изменений
-            watchId = navigator.geolocation.watchPosition(
-                updateLocation,
-                handleError,
-                options
-            );
+/* UPDATE COMMAND & AZIMUTH */
+cmd.oninput = ()=>{
+    if(!current) return;
+    current.text = cmd.value; // Сохраняем переносы строк
+    renderList();
+};
 
-            isTracking = true;
-            toggleBtn.textContent = 'Остановить отслеживание';
-            toggleBtn.classList.add('stop');
-        }
+az.oninput = ()=>{
+    if(!current) return;
+    current.azimuth = +az.value || 0;
+    updateMarker(current);
+};
 
-        function stopTracking() {
-            if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
-            // Останавливаем отслеживание ориентации
-            window.removeEventListener('deviceorientation', handleOrientation);
-            window.removeEventListener('deviceorientationabsolute', handleOrientationAbsolute);
-            currentHeading = null;
-            headingEl.textContent = '-';
-            isTracking = false;
-            toggleBtn.textContent = 'Начать отслеживание';
-            toggleBtn.classList.remove('stop');
-            updateStatus('Отслеживание остановлено', 'waiting');
-        }
+function rotate(d){
+    if(!current) return;
+    current.azimuth = (current.azimuth + d + 360) % 360;
+    az.value = current.azimuth;
+    updateMarker(current);
+}
 
-        toggleBtn.addEventListener('click', () => {
-            if (isTracking) {
-                stopTracking();
-            } else {
-                startTracking();
-            }
-        });
+/* UPDATE MARKER ICON */
+function updateMarker(p){
+    p.pm.options.set(
+        'iconImageHref',
+        arrowSVG(p.azimuth,p===current?'green':'blue',p.id)
+    );
+}
 
-        // Автоматический запуск при загрузке
-        window.addEventListener('load', () => {
-            startTracking();
-        });
+/* UPDATE COORDINATES DISPLAY */
+function updateCoord(){
+    if(!current) {
+        coord.textContent = "Координаты: — , —";
+        return;
+    }
+    coord.textContent = `Координаты: ${current.lat.toFixed(6)} , ${current.lon.toFixed(6)}`;
+}
 
-        // Поддержка работы в фоне через Page Visibility API
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && isTracking && watchId === null) {
-                // Перезапускаем если страница снова видна
-                startTracking();
-            }
-        });
+/* REMOVE POINT */
+function removePoint(){
+    if(!current) return;
+    map.geoObjects.remove(current.pm);
+    points = points.filter(p=>p!==current);
+    current=null;
+    updateCoord();
+    renderList();
+}
 
-        // Периодическое обновление для работы в фоне (когда возможно)
-        setInterval(() => {
-            if (isTracking && watchId !== null) {
-                navigator.geolocation.getCurrentPosition(
-                    updateLocation,
-                    handleError,
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            }
-        }, updateInterval);
-    </script>
+/* EXPORT JSON */
+function exportJSON(){
+    const data = points.map(p=>({
+        id: p.id,
+        lat: p.lat,
+        lon: p.lon,
+        azimuth: p.azimuth,
+        text: p.text
+    }));
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'route.json';
+    a.click();
+}
+</script>
 </body>
 </html>
