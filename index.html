@@ -71,6 +71,7 @@ textarea{
 
 <button onclick="removePoint()">Удалить точку</button>
 <button onclick="exportJSON()">Экспорт JSON</button>
+<button onclick="importJSON()">Импорт JSON</button>
 </div>
 
 <script>
@@ -211,20 +212,62 @@ function removePoint(){
     renderList();
 }
 
-/* EXPORT JSON */
-function exportJSON(){
-    const data = points.map(p=>({
+/* EXPORT JSON с BOM для корректной кириллицы */
+function exportJSON() {
+    const data = points.map(p => ({
         id: p.id,
         lat: p.lat,
         lon: p.lon,
         azimuth: p.azimuth,
         text: p.text
     }));
-    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob(["\uFEFF" + jsonStr], { type: 'application/json;charset=utf-8' });
+
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'route.json';
     a.click();
+}
+
+/* IMPORT JSON */
+function importJSON() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = ev => {
+            try {
+                const imported = JSON.parse(ev.target.result);
+                // Удаляем старые точки
+                points.forEach(p => map.geoObjects.remove(p.pm));
+                points = [];
+                current = null;
+
+                imported.forEach(p => {
+                    addPoint([p.lat, p.lon]);
+                    // Восстанавливаем текст и азимут
+                    const newPoint = points[points.length - 1];
+                    newPoint.text = p.text;
+                    newPoint.azimuth = p.azimuth;
+                    updateMarker(newPoint);
+                });
+
+                renderList();
+                updateCoord();
+                alert('Маршрут успешно импортирован!');
+            } catch (err) {
+                alert('Ошибка при чтении JSON: ' + err);
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    };
+    input.click();
 }
 </script>
 </body>
