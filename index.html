@@ -1,274 +1,48 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<title>Редактор маршрутов</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
-
-<style>
-html,body{margin:0;height:100%;font-family:Arial}
-#map{position:absolute;inset:0}
-
-#panel{
-    position:absolute;right:10px;top:10px;z-index:10;
-    width:320px;max-height:90%;
-    background:rgba(255,255,255,.95);
-    border-radius:8px;padding:8px;overflow:auto
-}
-
-#list div{
-    padding:6px;
-    border-bottom:1px solid #ddd;
-    cursor:pointer;
-    word-break: break-word;
-    white-space: pre-wrap; /* переносы строк отображаются */
-}
-#list div.active{
-    background:#d0f5d0;font-weight:bold
-}
-
-button, input, textarea{
-    width:100%;
-    margin-top:5px;
-    box-sizing: border-box;
-}
-
-textarea{
-    resize: vertical;
-}
-
-.az-btns button{
-    width:48%;font-size:18px
-}
-
-.coord {
-    margin-top: 5px;
-    font-size: 14px;
-    color: #333;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>Воспроизведение текста</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        textarea {
+            width: 70%;
+            height: 150px;
+            font-size: 16px;
+        }
+        button {
+            font-size: 16px;
+            padding: 10px 15px;
+        }
+    </style>
 </head>
 <body>
 
-<div id="map"></div>
-
-<div id="panel">
-<b>Маршрут</b>
-<div id="list"></div>
-
-<hr>
-<b>Точка</b>
-<textarea id="cmd" placeholder="Команда" rows="3"></textarea>
-<div class="az-btns">
-<button onclick="rotate(-10)">⟲ −10°</button>
-<button onclick="rotate(10)">⟳ +10°</button>
-</div>
-<input id="az" type="number" placeholder="Азимут">
-
-<div class="coord" id="coord">Координаты: — , —</div>
-
-<button onclick="removePoint()">Удалить точку</button>
-<button onclick="exportJSON()">Экспорт JSON</button>
-<button onclick="importJSON()">Импорт JSON</button>
+<div class="container">
+    <textarea id="text" placeholder="Введите текст..."></textarea>
+    <button onclick="playText()">▶ Воспроизвести</button>
 </div>
 
 <script>
-let map;
-let points=[];
-let current=null;
+    function playText() {
+        const text = document.getElementById("text").value;
+        if (!text) return;
 
-/* INIT */
-ymaps.ready(()=>{
-    map=new ymaps.Map("map",{
-        center:[56.3399,43.9332],
-        zoom:18,
-        type:'yandex#satellite',
-        controls:[]
-    });
-
-    map.events.add('click',e=>{
-        const c=e.get('coords');
-        addPoint(c);
-    });
-});
-
-/* SVG с цифрой внутри стрелки */
-function arrowSVG(a,color,id){
-    return 'data:image/svg+xml;utf8,'+encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
-<g transform="rotate(${a},20,20)">
-<polygon points="20,2 28,30 20,24 12,30" fill="${color}"/>
-</g>
-<text x="20" y="22" font-size="14" text-anchor="middle" fill="white" font-weight="bold">${id}</text>
-</svg>`);
-}
-
-/* ADD POINT */
-function addPoint(coords){
-    const id = points.length ? points[points.length-1].id + 1 : 1;
-    const p = {
-        id,
-        lat: coords[0],
-        lon: coords[1],
-        azimuth: 0,
-        text: ''
-    };
-
-    p.pm = new ymaps.Placemark(coords, {}, {
-        iconLayout: 'default#image',
-        iconImageHref: arrowSVG(0,'blue',id),
-        iconImageSize: [40,40],
-        iconImageOffset: [-20,-20],
-        draggable: true
-    });
-
-    // Клик по метке — переключение на точку
-    p.pm.events.add('click', () => selectPoint(p));
-
-    // При начале перетаскивания выделяем точку
-    p.pm.events.add('dragstart', () => selectPoint(p));
-
-    // Обновление координат после перемещения
-    p.pm.events.add('geometrychange', () => {
-        const newCoords = p.pm.geometry.getCoordinates();
-        p.lat = newCoords[0];
-        p.lon = newCoords[1];
-        selectPoint(p); // переключаем редактор на эту точку
-    });
-
-    map.geoObjects.add(p.pm);
-    points.push(p);
-    selectPoint(p);
-    renderList();
-}
-
-/* SELECT POINT */
-function selectPoint(p){
-    current = p;
-    cmd.value = p.text; // Полностью показываем команду
-    az.value = p.azimuth;
-    renderList();
-    updateMarker(p);
-    updateCoord();
-}
-
-function renderList(){
-    list.innerHTML = '';
-    points.forEach(p=>{
-        const d = document.createElement('div');
-        d.textContent = `${p.id}. ${p.text || '(без команды)'}`; // Полный текст команды
-        if(p===current) d.classList.add('active');
-        d.onclick = ()=>selectPoint(p);
-        list.appendChild(d);
-    });
-}
-
-/* UPDATE COMMAND & AZIMUTH */
-cmd.oninput = ()=>{
-    if(!current) return;
-    current.text = cmd.value; // Сохраняем переносы строк
-    renderList();
-};
-
-az.oninput = ()=>{
-    if(!current) return;
-    current.azimuth = +az.value || 0;
-    updateMarker(current);
-};
-
-function rotate(d){
-    if(!current) return;
-    current.azimuth = (current.azimuth + d + 360) % 360;
-    az.value = current.azimuth;
-    updateMarker(current);
-}
-
-/* UPDATE MARKER ICON */
-function updateMarker(p){
-    p.pm.options.set(
-        'iconImageHref',
-        arrowSVG(p.azimuth,p===current?'green':'blue',p.id)
-    );
-}
-
-/* UPDATE COORDINATES DISPLAY */
-function updateCoord(){
-    if(!current) {
-        coord.textContent = "Координаты: — , —";
-        return;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "ru-RU";
+        speechSynthesis.cancel(); // остановить предыдущее
+        speechSynthesis.speak(utterance);
     }
-    coord.textContent = `Координаты: ${current.lat.toFixed(6)} , ${current.lon.toFixed(6)}`;
-}
-
-/* REMOVE POINT */
-function removePoint(){
-    if(!current) return;
-    map.geoObjects.remove(current.pm);
-    points = points.filter(p=>p!==current);
-    current=null;
-    updateCoord();
-    renderList();
-}
-
-/* EXPORT JSON с BOM для корректной кириллицы */
-function exportJSON() {
-    const data = points.map(p => ({
-        id: p.id,
-        lat: p.lat,
-        lon: p.lon,
-        azimuth: p.azimuth,
-        text: p.text
-    }));
-
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob(["\uFEFF" + jsonStr], { type: 'application/json;charset=utf-8' });
-
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'route.json';
-    a.click();
-}
-
-/* IMPORT JSON */
-function importJSON() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json,application/json';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = ev => {
-            try {
-                const imported = JSON.parse(ev.target.result);
-                // Удаляем старые точки
-                points.forEach(p => map.geoObjects.remove(p.pm));
-                points = [];
-                current = null;
-
-                imported.forEach(p => {
-                    addPoint([p.lat, p.lon]);
-                    // Восстанавливаем текст и азимут
-                    const newPoint = points[points.length - 1];
-                    newPoint.text = p.text;
-                    newPoint.azimuth = p.azimuth;
-                    updateMarker(newPoint);
-                });
-
-                renderList();
-                updateCoord();
-                alert('Маршрут успешно импортирован!');
-            } catch (err) {
-                alert('Ошибка при чтении JSON: ' + err);
-            }
-        };
-        reader.readAsText(file, 'UTF-8');
-    };
-    input.click();
-}
 </script>
+
 </body>
 </html>
