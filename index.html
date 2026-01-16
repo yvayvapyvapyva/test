@@ -1,127 +1,24 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<title>Telegram-style Live Location Demo</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
-<style>
-html, body {margin:0; height:100%; font-family:Arial;}
-#map {width:100%; height:100%;}
-#info {position:absolute;bottom:0;left:0;width:100%;background:rgba(255,255,255,0.9);padding:8px;font-weight:bold;z-index:15;}
-#start {position:absolute;inset:0;z-index:20;background:black;color:white;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;}
-</style>
+    <meta charset="UTF-8">
+    <title>Аудио плеер</title>
 </head>
 <body>
 
-<div id="start">Нажмите для запуска</div>
-<div id="info">Ожидание GPS…</div>
-<div id="map"></div>
+    <button onclick="playAudio()">Воспроизвести</button>
 
-<script>
-let map, userPlacemark;
-let lastGPS = null;
-let azHistory = [];
-let compassAz = null;
-let compassAvailable = false;
-let azSource = '—';
+    <audio id="audio">
+        <source src="1.wav" type="audio/wav">
+        Ваш браузер не поддерживает аудио.
+    </audio>
 
-const start = document.getElementById('start');
-const info = document.getElementById('info');
-
-start.onclick = async () => {
-    start.remove();
-    initCompass();
-    initMap();
-};
-
-function initCompass() {
-    if (!window.DeviceOrientationEvent) return;
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(p=>{
-            if(p==='granted'){ window.addEventListener('deviceorientation', onCompass); compassAvailable=true; }
-        });
-    } else {
-        window.addEventListener('deviceorientationabsolute', onCompass);
-        window.addEventListener('deviceorientation', onCompass);
-        compassAvailable=true;
-    }
-}
-
-function onCompass(e){
-    let a=null;
-    if(e.webkitCompassHeading!==undefined) a=e.webkitCompassHeading;
-    else if(e.absolute && e.alpha!==null) a=360-e.alpha;
-    if(a!==null && !isNaN(a)) compassAz=(a+360)%360;
-}
-
-function initMap(){
-    ymaps.ready(()=>{
-        map=new ymaps.Map("map",{center:[0,0],zoom:18,controls:[]});
-        userPlacemark=new ymaps.Placemark([0,0],{},{
-            iconLayout:'default#image',
-            iconImageHref:arrowSVG(0,'red'),
-            iconImageSize:[40,40],
-            iconImageOffset:[-20,-20]
-        });
-        map.geoObjects.add(userPlacemark);
-        navigator.geolocation.watchPosition(onGPS,null,{enableHighAccuracy:true});
-    });
-}
-
-function onGPS(p){
-    const pos=[p.coords.latitude,p.coords.longitude];
-    const speedKmh = p.coords.speed!=null ? p.coords.speed*3.6 : 0;
-    const speedLimit = 5; // km/h, ниже используем компас
-    let az=null;
-    azSource='—';
-
-    if(p.coords.heading!==null && !isNaN(p.coords.heading) && speedKmh>=speedLimit){
-        az=p.coords.heading;
-        azSource='GPS';
-    } else if(compassAvailable && compassAz!==null && speedKmh<speedLimit){
-        az=compassAz;
-        azSource='COMPASS';
-    } else if(lastGPS){
-        const dLat=pos[0]-lastGPS[0];
-        const dLon=pos[1]-lastGPS[1];
-        const dist=Math.sqrt(dLat*dLat+dLon*dLon)*111000;
-        if(dist>1){
-            az=(Math.atan2(dLon,dLat)*180/Math.PI+360)%360;
-            azSource='GPS(calc)';
+    <script>
+        function playAudio() {
+            const audio = document.getElementById("audio");
+            audio.play();
         }
-    }
+    </script>
 
-    if(az!==null){
-        azHistory.push(az);
-        if(azHistory.length>5) azHistory.shift(); // усреднение последних 5
-    }
-    lastGPS=pos;
-
-    const avgAz = averageAngle(azHistory);
-
-    userPlacemark.geometry.setCoordinates(pos);
-    userPlacemark.options.set('iconImageHref',arrowSVG(avgAz,'red'));
-    map.setCenter(pos);
-
-    info.textContent=`Азимут: ${Math.round(avgAz)}° | Источник: ${azSource} | Скорость: ${speedKmh.toFixed(1)} км/ч`;
-}
-
-function averageAngle(arr){
-    if(!arr.length)return 0;
-    let x=0,y=0;
-    for(const a of arr){ const r=a*Math.PI/180; x+=Math.cos(r); y+=Math.sin(r);}
-    return (Math.atan2(y,x)*180/Math.PI+360)%360;
-}
-
-function arrowSVG(a,color){
-    return 'data:image/svg+xml;utf8,'+encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
-<g transform="rotate(${a},20,20)">
-<polygon points="20,2 28,30 20,24 12,30" fill="${color}"/>
-</g>
-</svg>`);
-}
-</script>
 </body>
 </html>
