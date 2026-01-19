@@ -2,16 +2,15 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <title>Google Навигатор: Точный триггер</title>
+    <title>Навигатор: Google Cloud TTS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <!-- Яндекс Карты (Не забудьте вставить свой API Ключ) -->
+    <!-- Яндекс Карты -->
     <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: -apple-system, sans-serif; overflow: hidden; background: #000; }
+        html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
         #map { width: 100%; height: 100%; position: absolute; }
         
-        /* Начальный экран */
         #start { 
             position: absolute; inset: 0; z-index: 100; 
             background: #0f0f0f; color: white; 
@@ -19,14 +18,12 @@
             cursor: pointer; text-align: center; padding: 20px;
         }
 
-        /* Кнопка Меню */
         #togglePanelBtn { 
             position: absolute; top: 15px; left: 15px; z-index: 50; 
             width: 44px; height: 44px; background: white; border: none; border-radius: 50%; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-size: 20px; cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-size: 20px;
         }
 
-        /* Панель настроек */
         #panel { 
             position: absolute; top: 70px; left: 15px; z-index: 40; 
             width: 300px; max-height: 75vh; background: white; 
@@ -34,11 +31,10 @@
         }
 
         .group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        label { display: block; font-size: 11px; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 5px; }
-        select, input, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+        label { display: block; font-size: 11px; font-weight: bold; color: #888; margin-bottom: 5px; }
+        input, button, select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
         button { background: #4285f4; color: white; border: none; font-weight: bold; cursor: pointer; }
         
-        /* Инфо-панель снизу */
         #info { 
             position: absolute; bottom: 0; width: 100%; background: white; 
             padding: 15px; z-index: 30; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); box-sizing: border-box;
@@ -46,7 +42,7 @@
         .main-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #4285f4; }
         .stats { display: flex; justify-content: space-between; font-size: 13px; color: #555; }
 
-        #targets div { padding: 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; cursor: pointer; }
+        #targets div { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; cursor: pointer; }
         #targets div.active { color: #4285f4; font-weight: bold; background: #f1f3f4; border-left: 4px solid #4285f4; }
     </style>
 </head>
@@ -54,17 +50,15 @@
 
 <div id="start">
     <h1 style="color:#4285f4; margin-bottom: 10px;">Google Навигатор</h1>
-    <p>Нажмите для запуска GPS и облачной озвучки</p>
-    <p style="font-size: 12px; color: #666; margin-top: 20px;">Лучше всего работает в Google Chrome</p>
+    <p>Нажмите для активации GPS и Google TTS</p>
 </div>
 
 <button id="togglePanelBtn">☰</button>
 
 <div id="panel">
     <div class="group">
-        <label>Голос Google (Cloud)</label>
-        <select id="voiceSelect"><option value="">Поиск голосов...</option></select>
-        <button onclick="testVoice()" style="background:#f1f3f4; color:#333; margin-top:8px; border:1px solid #ddd">Проверить звук</button>
+        <label>Проверка голоса</label>
+        <button onclick="speak('Это проверка звука Гугл')" style="background:#f1f3f4; color:#333; border:1px solid #ddd">▶ Прослушать тест</button>
     </div>
 
     <div class="group">
@@ -76,7 +70,6 @@
 
     <div class="group">
         <label>Дистанция триггера (метры)</label>
-        <!-- Поле ввода числа вместо ползунка -->
         <input type="number" id="distanceTrigger" value="20" min="1" max="999">
     </div>
 
@@ -94,63 +87,29 @@
 
 <div id="map"></div>
 
+<!-- Скрытый аудио-плеер для Google TTS -->
+<audio id="ttsAudio" style="display:none"></audio>
+
 <script>
 let map, userPlacemark, points = [], autoCenter = true;
 let azHistory = [], lastAzimuth = 0;
-let currentVoice = null;
+const ttsAudio = document.getElementById('ttsAudio');
 
-/* ==== ОЗВУЧКА GOOGLE ==== */
-function initVoices() {
-    const voiceSelect = document.getElementById('voiceSelect');
-    
-    function updateList() {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length === 0) return;
-
-        voiceSelect.innerHTML = '';
-        const ruVoices = voices.filter(v => v.lang.includes('ru'));
-
-        ruVoices.forEach(voice => {
-            const option = document.createElement('option');
-            option.value = voice.name;
-            const isGoogle = voice.name.includes('Google');
-            option.textContent = isGoogle ? "☁️ " + voice.name : "🔈 " + voice.name;
-            
-            if (isGoogle && !currentVoice) {
-                option.selected = true;
-                currentVoice = voice;
-            }
-            voiceSelect.appendChild(option);
-        });
-
-        if (!currentVoice && ruVoices.length > 0) currentVoice = ruVoices[0];
-    }
-
-    updateList();
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = updateList;
-    }
-}
-
+/* ==== ФУНКЦИЯ ЗАГРУЗКИ GOOGLE TTS (MP3) ==== */
 function speak(text) {
     if (!text) return;
-    window.speechSynthesis.cancel(); 
-    const utter = new SpeechSynthesisUtterance(text);
-    if (currentVoice) utter.voice = currentVoice;
-    utter.lang = 'ru-RU';
-    utter.rate = 1.0;
-    utter.pitch = 1.0;
-    window.speechSynthesis.speak(utter);
-}
 
-function testVoice() {
-    speak("Проверка облачного голоса Гугл. Дистанция установлена на " + document.getElementById('distanceTrigger').value + " метров.");
+    // Формируем URL для загрузки озвучки (Google Translate TTS API)
+    // client=tw-ob позволяет обойти многие ограничения
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ru&client=tw-ob`;
+    
+    ttsAudio.src = url;
+    ttsAudio.play().catch(e => console.error("Ошибка аудио:", e));
 }
 
 /* ==== GPS И КАРТА ==== */
 async function startApp() {
     document.getElementById('start').remove();
-    initVoices();
     
     if ('wakeLock' in navigator) {
         try { await navigator.wakeLock.request('screen'); } catch(e){}
@@ -190,6 +149,7 @@ async function startApp() {
     });
 
     loadGist();
+    // Разблокировка звука при первом клике
     speak(""); 
 }
 
@@ -204,11 +164,10 @@ function checkLogic(pos, speed, az) {
     document.getElementById('speedText').textContent = `${speed} км/ч`;
     document.getElementById('targetAzText').textContent = `Курс: ${target.azimuth}°`;
 
-    // Читаем значение из поля ввода
     const triggerDist = parseInt(document.getElementById('distanceTrigger').value) || 20;
 
     if (dist <= triggerDist && azDiff <= 60) {
-        speak(target.text);
+        speak(target.text); // Озвучка через загрузку Google MP3
         map.geoObjects.remove(target.placemark);
         points.shift();
         drawRoute();
