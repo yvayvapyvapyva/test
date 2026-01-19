@@ -1,75 +1,291 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <title>Озвучка текста</title>
-    <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f4f9; }
-        .card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; }
-        textarea { width: 100%; height: 100px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; padding: 10px; box-sizing: border-box; }
-        select, button { width: 100%; padding: 10px; margin-top: 10px; cursor: pointer; border-radius: 5px; border: 1px solid #ddd; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; }
-        button:hover { background: #0056b3; }
-    </style>
+<meta charset="utf-8">
+<title>Навигация с Edge TTS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
+
+<style>
+html, body { margin:0; height:100%; font-family:Arial; }
+#map { width:100%; height:100%; }
+#start{position:absolute;inset:0;z-index:20;background:black;color:white;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer}
+#togglePanelBtn{position:absolute;top:10px;left:10px;z-index:16;width:36px;height:36px;background:white;border:none;border-radius:6px;font-size:20px}
+#panel{position:absolute;top:50px;left:10px;z-index:15;width:300px;max-height:80%;background:rgba(255,255,255,.95);padding:8px;border-radius:6px;display:none;overflow:auto}
+#panel input, #panel select{width:100%;margin-top:4px}
+#panel label{font-size:13px;font-weight:bold}
+#targets div{padding:6px;border-bottom:1px solid #ddd;cursor:pointer}
+#targets div.active{background:#c8f7c5;font-weight:bold}
+#info{position:absolute;bottom:0;left:0;width:100%;background:rgba(255,255,255,.95);padding:8px;font-weight:bold;z-index:15}
+hr{margin:8px 0}
+</style>
 </head>
+
 <body>
 
-<div class="card">
-    <h3>Озвучка текста</h3>
-    <textarea id="textInput" placeholder="Введите текст для озвучки...">Привет! Как ваши дела? Это качественный голос в вашем браузере.</textarea>
-    
-    <label for="voiceSelect">Выберите голос:</label>
-    <select id="voiceSelect"></select>
+<div id="start">Нажмите для запуска (Включить звук)</div>
+<button id="togglePanelBtn">☰</button>
 
-    <button id="speakBtn">Озвучить</button>
+<div id="panel">
+<button onclick="document.getElementById('jsonFile').click()">Загрузить JSON</button>
+<input id="jsonFile" type="file" accept=".json" style="display:none">
+
+<label>Выберите маршрут с Gist</label>
+<select id="gistSelect"><option value="">-- Загрузка... --</option></select>
+
+<label>Дистанция триггера (м)</label>
+<input id="distanceTrigger" type="number" value="20">
+
+<button id="toggleAutoCenter">Автоцентр: Вкл</button>
+
+<hr>
+
+<label>Усреднение азимута (точек)</label>
+<input id="azAvgCount" type="number" value="5" min="1" max="20">
+
+<hr>
+<div id="targets"></div>
 </div>
 
+<div id="info">Ожидание GPS…</div>
+<div id="map"></div>
+
 <script>
-    const synth = window.speechSynthesis;
-    const textInput = document.getElementById('textInput');
-    const voiceSelect = document.getElementById('voiceSelect');
-    const speakBtn = document.getElementById('speakBtn');
+/* ==== ПЕРЕМЕННЫЕ ==== */
+let map, userPlacemark, points = [], autoCenter = true, wakeLock = null;
+let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
+let selectedVoice = null;
 
-    let voices = [];
+/* ==== ФУНКЦИИ ОЗВУЧКИ (EDGE TTS) ==== */
 
-    // Загрузка доступных голосов
-    function populateVoiceList() {
-        voices = synth.getVoices();
-        voiceSelect.innerHTML = '';
-        
-        voices.forEach((voice, i) => {
-            // Фильтруем только русские голоса (или уберите условие для всех)
-            if (voice.lang.includes('ru') || voice.lang.includes('en')) {
-                const option = document.createElement('option');
-                option.textContent = `${voice.name} (${voice.lang})`;
-                option.setAttribute('data-lang', voice.lang);
-                option.setAttribute('data-name', voice.name);
-                voiceSelect.appendChild(option);
-            }
+// Функция выбора лучшего голоса
+function loadVoices() {
+    const voices = speechSynthesis.getVoices();
+    // Ищем мужской нейронный голос Microsoft (Dmitry). Если нет - женский (Svetlana)
+    selectedVoice = voices.find(v => v.name.includes("Microsoft") && v.name.includes("Dmitry") && v.name.includes("Online")) ||
+                    voices.find(v => v.name.includes("Microsoft") && v.name.includes("Svetlana") && v.name.includes("Online")) ||
+                    voices.find(v => v.name.includes("Microsoft") && v.name.includes("Online")) ||
+                    voices.find(v => v.lang.includes("ru")); // Если не Edge, берем любой русский
+}
+
+// Вызываем загрузку при старте и при изменении списка голосов
+window.speechSynthesis.onvoiceschanged = loadVoices;
+
+function speakEdge(text) {
+    if (!text) return;
+    
+    // Отменяем текущую озвучку, если она есть, чтобы команды не наслаивались
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+    }
+    
+    // Настройки для более естественного звучания
+    utterance.rate = 1.0;  // Скорость (0.1 - 10)
+    utterance.pitch = 1.0; // Тональность (0 - 2)
+    utterance.lang = 'ru-RU';
+
+    speechSynthesis.speak(utterance);
+}
+
+/* ==== START ==== */
+start.onclick = async () => {
+    start.remove();
+    loadVoices(); // Пробуем загрузить голоса еще раз
+    
+    // "Прогрев" синтезатора (важно для мобильных устройств)
+    speakEdge(''); 
+    
+    if ('wakeLock' in navigator) {
+        try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+    }
+    initMap();
+    loadGistFiles();
+};
+
+/* ==== UI ==== */
+togglePanelBtn.onclick = () =>
+    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+
+toggleAutoCenter.onclick = () => {
+    autoCenter = !autoCenter;
+    toggleAutoCenter.textContent = `Автоцентр: ${autoCenter ? 'Вкл' : 'Выкл'}`;
+};
+
+/* ==== MAP ==== */
+function initMap(){
+    ymaps.ready(()=>{
+        map = new ymaps.Map("map", {
+            center:[0,0],
+            zoom:18,
+            type:'yandex#satellite',
+            controls:[]
         });
+
+        userPlacemark = new ymaps.Placemark([0,0],{},{
+            iconLayout:'default#image',
+            iconImageHref: arrowSVG(0,'red'),
+            iconImageSize:[40,40],
+            iconImageOffset:[-20,-20]
+        });
+
+        map.geoObjects.add(userPlacemark);
+        navigator.geolocation.watchPosition(onGPS, err => console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:5000});
+    });
+}
+
+/* ==== GPS + AZIMUTH ==== */
+function onGPS(p){
+    const c = [p.coords.latitude, p.coords.longitude];
+    const speedKmh = p.coords.speed != null ? p.coords.speed * 3.6 : 0;
+    lastSpeed = speedKmh.toFixed(1);
+
+    if (p.coords.heading !== null && !isNaN(p.coords.heading) && speedKmh >= 3) {
+        azHistory.push(p.coords.heading);
+        const maxLen = +azAvgCount.value || 5;
+        if (azHistory.length > maxLen) azHistory.shift();
     }
 
-    populateVoiceList();
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = populateVoiceList;
+    const avgAz = azHistory.length ? averageAngle(azHistory) : lastAzimuth;
+    lastAzimuth = avgAz;
+
+    userPlacemark.geometry.setCoordinates(c);
+    userPlacemark.options.set('iconImageHref', arrowSVG(avgAz,'red'));
+
+    if (autoCenter) map.setCenter(c);
+    checkDistance(c, lastSpeed, avgAz);
+}
+
+function averageAngle(arr){
+    let x=0,y=0;
+    for (const a of arr){
+        const r=a*Math.PI/180;
+        x+=Math.cos(r);
+        y+=Math.sin(r);
+    }
+    return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+
+function arrowSVG(a, color, num = '', opacity = 1, highlight = false) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g transform="rotate(${a},20,20)"><polygon points="20,2 30,32 20,26 10,32" fill="${color}" fill-opacity="${opacity}" stroke="${highlight ? '#7CFC00' : 'black'}" stroke-width="${highlight ? 2 : 1}" stroke-linejoin="round"/></g>${num ? `<text x="20" y="20" font-size="16" font-family="Arial" text-anchor="middle" dominant-baseline="middle" fill="white" font-weight="bold" stroke="black" stroke-width="1">${num}</text>` : ''}</svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+/* ==== CHECK DISTANCE ==== */
+function checkDistance(pos,speed,az){
+    if (!points.length) {
+        info.textContent = 'Маршрут пуст';
+        return;
     }
 
-    speakBtn.onclick = () => {
-        if (synth.speaking) return;
-        const utterThis = new SpeechSynthesisUtterance(textInput.value);
-        
-        const selectedOption = voiceSelect.selectedOptions[0].getAttribute('data-name');
-        voices.forEach((voice) => {
-            if (voice.name === selectedOption) {
-                utterThis.voice = voice;
-            }
-        });
+    const p = points[0];
+    const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
+    const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
 
-        utterThis.pitch = 1;
-        utterThis.rate = 1;
-        synth.speak(utterThis);
+    info.textContent = `№${p.id} | ${p.text} | Д: ${dist}м | Аз:${Math.round(az)}° | Цель:${p.azimuth}° | Скорость:${speed} км/ч`;
+
+    // Если дистанция меньше порога
+    if (dist <= (+distanceTrigger.value || 20) && diff <= 45) {
+        // ИСПОЛЬЗУЕМ НОВУЮ ОЗВУЧКУ
+        speakEdge(p.text); 
+        
+        map.geoObjects.remove(p.placemark);
+        points.shift();
+        rebuildRoute();
+    }
+}
+
+/* ==== JSON / ROUTE ==== */
+jsonFile.onchange = e => {
+    const r = new FileReader();
+    r.onload = () => {
+        points = JSON.parse(r.result).map((p, i) => ({
+            id: i + 1,
+            coords: [p.lat, p.lon],
+            azimuth: p.azimuth,
+            text: p.command,
+            color: p.color
+        }));
+        rebuildRoute();
     };
-</script>
+    r.readAsText(e.target.files[0]);
+};
 
+async function loadGistFiles() {
+    const gistId = '7d43c5ede26775934e66792a12fe656d';
+    const apiUrl = `https://api.github.com/gists/${gistId}`;
+    try {
+        const res = await fetch(apiUrl);
+        const gist = await res.json();
+        gistSelect.innerHTML = '<option value="">-- Выберите маршрут --</option>';
+        for (let filename in gist.files) {
+            if (filename.toLowerCase().endsWith('.json')) {
+                const opt = document.createElement('option');
+                opt.value = gist.files[filename].raw_url;
+                opt.textContent = filename.replace(/\.json$/i,'');
+                gistSelect.appendChild(opt);
+            }
+        }
+    } catch (e) {
+        gistSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+    }
+}
+
+gistSelect.onchange = async () => {
+    const url = gistSelect.value;
+    if (!url) return;
+    try {
+        const r = await fetch(url);
+        const data = await r.json();
+        points = data.map((p,i)=>({
+            id:i+1, coords:[p.lat,p.lon], azimuth:p.azimuth, text:p.command, color:p.color
+        }));
+        rebuildRoute();
+    } catch(e){ alert('Ошибка загрузки'); }
+};
+
+function updateInfo() {
+    if (!points.length) return;
+    const p = points[0];
+    info.textContent = `№${p.id} | ${p.text} | Цель Аз: ${p.azimuth}° | Ваш Аз: ${Math.round(lastAzimuth)}° | Скорость: ${lastSpeed} км/ч`;
+}
+
+function rebuildRoute() {
+    clearRoute();
+    targets.innerHTML = '';
+    points.forEach((p, i) => {
+        const color = p.color || 'blue';
+        const isActive = i === 0;
+        p.placemark = new ymaps.Placemark(p.coords, { balloonContent: p.text }, {
+            iconLayout:'default#image',
+            iconImageHref: arrowSVG(p.azimuth,color,p.id,1,isActive),
+            iconImageSize:[40,40], iconImageOffset:[-20,-20]
+        });
+        map.geoObjects.add(p.placemark);
+        const d = document.createElement('div');
+        d.textContent = `${p.id}. ${p.text}`;
+        if(isActive) d.classList.add('active');
+        d.onclick = () => { points = points.slice(i); rebuildRoute(); };
+        targets.appendChild(d);
+    });
+    updateInfo();
+}
+
+function clearRoute() {
+    if(!map) return;
+    const toRemove = [];
+    map.geoObjects.each(o => { if(o !== userPlacemark) toRemove.push(o); });
+    toRemove.forEach(o => map.geoObjects.remove(o));
+}
+
+function getDistance(a,b,c,d){
+    const R=6371000;
+    const dLat=(c-a)*Math.PI/180,dLon=(d-b)*Math.PI/180;
+    const x=Math.sin(dLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+</script>
 </body>
 </html>
