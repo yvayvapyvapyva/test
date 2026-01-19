@@ -2,23 +2,74 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Аудио плеер</title>
+    <title>Озвучка текста</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f4f9; }
+        .card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; }
+        textarea { width: 100%; height: 100px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; padding: 10px; box-sizing: border-box; }
+        select, button { width: 100%; padding: 10px; margin-top: 10px; cursor: pointer; border-radius: 5px; border: 1px solid #ddd; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; }
+        button:hover { background: #0056b3; }
+    </style>
 </head>
 <body>
 
-    <button onclick="playAudio()">Воспроизвести</button>
+<div class="card">
+    <h3>Озвучка текста</h3>
+    <textarea id="textInput" placeholder="Введите текст для озвучки...">Привет! Как ваши дела? Это качественный голос в вашем браузере.</textarea>
+    
+    <label for="voiceSelect">Выберите голос:</label>
+    <select id="voiceSelect"></select>
 
-    <audio id="audio">
-        <source src="8.5. Перед поворотом направо, налево или разворотом водитель обязан заблаговременно занять соответствующее крайнее положение на проезжей части, предназначенной для движения в данном направлении, кроме случаев, когда совершается поворот при въезде на перекресток, где организовано круговое движение..wav" type="audio/wav">
-        Ваш браузер не поддерживает аудио.
-    </audio>
+    <button id="speakBtn">Озвучить</button>
+</div>
 
-    <script>
-        function playAudio() {
-            const audio = document.getElementById("audio");
-            audio.play();
-        }
-    </script>
+<script>
+    const synth = window.speechSynthesis;
+    const textInput = document.getElementById('textInput');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const speakBtn = document.getElementById('speakBtn');
+
+    let voices = [];
+
+    // Загрузка доступных голосов
+    function populateVoiceList() {
+        voices = synth.getVoices();
+        voiceSelect.innerHTML = '';
+        
+        voices.forEach((voice, i) => {
+            // Фильтруем только русские голоса (или уберите условие для всех)
+            if (voice.lang.includes('ru') || voice.lang.includes('en')) {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.setAttribute('data-lang', voice.lang);
+                option.setAttribute('data-name', voice.name);
+                voiceSelect.appendChild(option);
+            }
+        });
+    }
+
+    populateVoiceList();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = populateVoiceList;
+    }
+
+    speakBtn.onclick = () => {
+        if (synth.speaking) return;
+        const utterThis = new SpeechSynthesisUtterance(textInput.value);
+        
+        const selectedOption = voiceSelect.selectedOptions[0].getAttribute('data-name');
+        voices.forEach((voice) => {
+            if (voice.name === selectedOption) {
+                utterThis.voice = voice;
+            }
+        });
+
+        utterThis.pitch = 1;
+        utterThis.rate = 1;
+        synth.speak(utterThis);
+    };
+</script>
 
 </body>
 </html>
