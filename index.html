@@ -2,95 +2,82 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <title>Навигатор с Edge TTS</title>
+    <title>Навигатор PRO: Edge Neural TTS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <!-- Подключаем Яндекс.Карты -->
     <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
-        #map { width: 100%; height: 100%; background: #222; }
+        html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
+        #map { width: 100%; height: 100%; position: absolute; }
         
-        /* Заставка перед началом */
         #start { 
             position: absolute; inset: 0; z-index: 100; 
-            background: rgba(0,0,0,0.9); color: white; 
+            background: #111; color: white; 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            text-align: center; cursor: pointer; padding: 20px;
+            cursor: pointer; text-align: center;
         }
-        #start h1 { font-size: 24px; margin-bottom: 10px; }
-        #start p { font-size: 16px; opacity: 0.8; }
 
-        /* Кнопка меню */
         #togglePanelBtn { 
             position: absolute; top: 15px; left: 15px; z-index: 50; 
-            width: 44px; height: 44px; background: white; border: none; 
-            border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-size: 20px; cursor: pointer;
+            width: 44px; height: 44px; background: white; border: none; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-size: 20px;
         }
 
-        /* Панель управления */
         #panel { 
             position: absolute; top: 70px; left: 15px; z-index: 40; 
-            width: 280px; max-height: 70vh; background: white; 
+            width: 300px; max-height: 70vh; background: white; 
             padding: 15px; border-radius: 12px; display: none; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        #panel label { display: block; margin-top: 10px; font-size: 12px; font-weight: bold; color: #666; }
-        #panel input, #panel select, #panel button { width: 100%; margin-top: 5px; padding: 8px; border-radius: 6px; border: 1px solid #ddd; box-sizing: border-box; }
-        #panel button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-        /* Список целей */
-        #targets { margin-top: 15px; border-top: 1px solid #eee; }
-        #targets div { padding: 8px; border-bottom: 1px solid #eee; font-size: 13px; cursor: pointer; }
-        #targets div.active { background: #e7f3ff; font-weight: bold; color: #007bff; border-left: 3px solid #007bff; }
-
-        /* Инфо-панель снизу */
+        .setting-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        label { display: block; font-size: 11px; font-weight: bold; color: #666; text-transform: uppercase; }
+        select, input, button { width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; }
+        
         #info { 
-            position: absolute; bottom: 0; left: 0; width: 100%; 
-            background: white; padding: 15px; z-index: 30; 
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); box-sizing: border-box;
-            display: flex; flex-direction: column; gap: 5px;
+            position: absolute; bottom: 0; width: 100%; background: white; 
+            padding: 15px; z-index: 30; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); box-sizing: border-box;
         }
-        .info-row { display: flex; justify-content: space-between; font-size: 14px; }
-        .main-text { font-size: 18px; font-weight: bold; color: #000; }
+        .main-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #007bff; }
+        .stats { display: flex; justify-content: space-between; font-size: 13px; color: #444; }
+
+        #targets div { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
+        #targets div.active { background: #e7f3ff; font-weight: bold; border-left: 4px solid #007bff; }
     </style>
 </head>
-
 <body>
 
 <div id="start">
-    <h1>Навигатор</h1>
-    <p>Нажмите для активации GPS и озвучки</p>
-    <small style="margin-top:20px; color: #aaa;">Рекомендуется использовать Microsoft Edge</small>
+    <h1 style="margin:0">Навигатор</h1>
+    <p style="opacity:0.7">Нажмите для запуска голоса и GPS</p>
 </div>
 
 <button id="togglePanelBtn">☰</button>
 
 <div id="panel">
-    <button onclick="document.getElementById('jsonFile').click()">📂 Загрузить JSON</button>
-    <input id="jsonFile" type="file" accept=".json" style="display:none">
+    <div class="setting-group">
+        <label>Голос (Выбирайте "Natural" или "Online")</label>
+        <select id="voiceSelect"><option value="">Загрузка голосов...</option></select>
+        <button onclick="testVoice()" style="background:#f0f0f0; color: #333; margin-top:5px; font-size:12px">Проверить голос</button>
+    </div>
 
-    <label>Маршрут из Gist (Github)</label>
-    <select id="gistSelect"><option value="">-- Загрузка... --</option></select>
+    <div class="setting-group">
+        <button onclick="document.getElementById('jsonFile').click()" style="background:#007bff; color:white">📂 Загрузить маршрут JSON</button>
+        <input id="jsonFile" type="file" accept=".json" style="display:none">
+        <select id="gistSelect" style="margin-top:10px"><option value="">Маршруты из облака...</option></select>
+    </div>
 
-    <label>Дистанция срабатывания (м)</label>
-    <input id="distanceTrigger" type="number" value="20">
+    <div class="setting-group">
+        <label>Дистанция триггера: <span id="distVal">20</span>м</label>
+        <input type="range" id="distanceTrigger" min="5" max="100" value="20" oninput="distVal.textContent=value">
+    </div>
 
-    <label>Усреднение направления</label>
-    <input id="azAvgCount" type="number" value="5" min="1" max="20">
-
-    <button id="toggleAutoCenter" style="background:#6c757d">Автоцентр: Вкл</button>
-    
     <div id="targets"></div>
 </div>
 
 <div id="info">
-    <div class="main-text" id="targetText">Ожидание маршрута...</div>
-    <div class="info-row">
+    <div class="main-text" id="targetText">Маршрут не загружен</div>
+    <div class="stats">
         <span id="distText">Дистанция: ---</span>
-        <span id="speedText">Скорость: 0 км/ч</span>
-    </div>
-    <div class="info-row" style="font-size: 11px; color: #888;">
-        <span id="azText">Азимут: ---</span>
+        <span id="speedText">0 км/ч</span>
         <span id="targetAzText">Цель: ---</span>
     </div>
 </div>
@@ -98,66 +85,76 @@
 <div id="map"></div>
 
 <script>
-/* ==== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==== */
-let map, userPlacemark, points = [], autoCenter = true, wakeLock = null;
-let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
-let selectedVoice = null;
+let map, userPlacemark, points = [], autoCenter = true;
+let azHistory = [], lastAzimuth = 0;
+let currentVoice = null;
 
-/* ==== СИСТЕМА ОЗВУЧКИ (EDGE TTS) ==== */
-function loadVoices() {
-    return new Promise((resolve) => {
-        let voices = speechSynthesis.getVoices();
-        const findVoice = () => {
-            voices = speechSynthesis.getVoices();
-            // Ищем нейронного Дмитрия, затем Светлану, затем любой русский онлайн
-            selectedVoice = voices.find(v => v.name.includes("Dmitry") && v.name.includes("Online")) ||
-                            voices.find(v => v.name.includes("Svetlana") && v.name.includes("Online")) ||
-                            voices.find(v => v.lang.includes("ru") && v.name.includes("Online")) ||
-                            voices.find(v => v.lang.includes("ru"));
-            if (selectedVoice) {
-                console.log("Выбран голос:", selectedVoice.name);
-                resolve();
+/* ==== ГОЛОСОВАЯ СИСТЕМА ==== */
+function initVoices() {
+    const voiceSelect = document.getElementById('voiceSelect');
+    
+    function updateList() {
+        const voices = speechSynthesis.getVoices();
+        voiceSelect.innerHTML = '';
+        
+        // Сначала фильтруем русские голоса
+        const ruVoices = voices.filter(v => v.lang.includes('ru'));
+        
+        ruVoices.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.name;
+            option.textContent = voice.name;
+            
+            // Авто-выбор лучшего голоса при первой загрузке
+            if (!currentVoice) {
+                if (voice.name.includes('Dmitry') && voice.name.includes('Online')) {
+                    option.selected = true;
+                    currentVoice = voice;
+                }
             }
-        };
-        if (voices.length > 0) findVoice();
-        else speechSynthesis.onvoiceschanged = findVoice;
-    });
+            voiceSelect.appendChild(option);
+        });
+
+        if (!currentVoice && ruVoices.length > 0) currentVoice = ruVoices[0];
+    }
+
+    updateList();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = updateList;
+    }
+
+    voiceSelect.onchange = () => {
+        currentVoice = speechSynthesis.getVoices().find(v => v.name === voiceSelect.value);
+        speak("Голос изменен");
+    };
 }
 
 function speak(text) {
     if (!text) return;
-    speechSynthesis.cancel(); // Прерываем текущую речь
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.lang = 'ru-RU';
-    utterance.rate = 0.95; // Чуть медленнее для четкости
-    utterance.pitch = 1.0;
-    
-    // Фикс для Chrome/Edge (иногда синтез "засыпает")
-    utterance.onstart = () => { if (speechSynthesis.speaking) console.log("Говорю..."); };
-    speechSynthesis.speak(utterance);
-    
-    // Принудительный запуск, если зависло
-    setTimeout(() => { if (speechSynthesis.speaking) speechSynthesis.resume(); }, 100);
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    if (currentVoice) utter.voice = currentVoice;
+    utter.lang = 'ru-RU';
+    utter.rate = 1.0;
+    window.speechSynthesis.speak(utter);
 }
 
-/* ==== ЛОГИКА GPS И КАРТЫ ==== */
+function testVoice() {
+    speak("Это пример нейронного голоса Microsoft Edge. Как вы меня слышите?");
+}
+
+/* ==== ГЕОЛОКАЦИЯ И КАРТА ==== */
 async function startApp() {
     document.getElementById('start').remove();
+    initVoices();
     
-    // 1. Инициализация голоса
-    await loadVoices();
-    speak("Система готова. Ожидаю GPS.");
-
-    // 2. Блокировка сна экрана
     if ('wakeLock' in navigator) {
-        try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+        try { await navigator.wakeLock.request('screen'); } catch(e){}
     }
 
-    // 3. Карта
     ymaps.ready(() => {
         map = new ymaps.Map("map", {
-            center: [0, 0], zoom: 17, type: 'yandex#satellite', controls: []
+            center: [0, 0], zoom: 18, type: 'yandex#satellite', controls: []
         });
 
         userPlacemark = new ymaps.Placemark([0, 0], {}, {
@@ -168,177 +165,123 @@ async function startApp() {
 
         map.geoObjects.add(userPlacemark);
         
-        // Слежение за позицией
-        navigator.geolocation.watchPosition(updatePosition, (err) => console.error(err), {
-            enableHighAccuracy: true, maximumAge: 0, timeout: 10000
-        });
+        navigator.geolocation.watchPosition(p => {
+            const coords = [p.coords.latitude, p.coords.longitude];
+            const speed = p.coords.speed ? (p.coords.speed * 3.6).toFixed(1) : 0;
+            
+            if (p.coords.heading !== null && speed > 2) {
+                azHistory.push(p.coords.heading);
+                if (azHistory.length > 5) azHistory.shift();
+            }
+            const avgAz = azHistory.length ? averageAngle(azHistory) : lastAzimuth;
+            lastAzimuth = avgAz;
+
+            userPlacemark.geometry.setCoordinates(coords);
+            userPlacemark.options.set('iconImageHref', createArrowSVG(avgAz, 'red'));
+            map.setCenter(coords, map.getZoom(), { duration: 400 });
+
+            logic(coords, speed, avgAz);
+        }, err => console.error(err), { enableHighAccuracy: true });
     });
 
-    loadGistFiles();
+    loadGist();
 }
 
-function updatePosition(p) {
-    const coords = [p.coords.latitude, p.coords.longitude];
-    const speed = p.coords.speed ? (p.coords.speed * 3.6).toFixed(1) : 0;
-    lastSpeed = speed;
-
-    // Сглаживание азимута
-    if (p.coords.heading !== null && !isNaN(p.coords.heading) && speed > 2) {
-        azHistory.push(p.coords.heading);
-        if (azHistory.length > (+document.getElementById('azAvgCount').value || 5)) azHistory.shift();
-    }
-    const avgAz = azHistory.length ? averageAngle(azHistory) : lastAzimuth;
-    lastAzimuth = avgAz;
-
-    // Обновление маркера и карты
-    userPlacemark.geometry.setCoordinates(coords);
-    userPlacemark.options.set('iconImageHref', createArrowSVG(avgAz, 'red'));
-    if (autoCenter) map.setCenter(coords, map.getZoom(), { duration: 500 });
-
-    checkLogic(coords, speed, avgAz);
-}
-
-function checkLogic(userCoords, speed, userAz) {
+function logic(pos, speed, az) {
     if (!points.length) return;
-
     const target = points[0];
-    const dist = Math.round(calculateDistance(userCoords[0], userCoords[1], target.coords[0], target.coords[1]));
-    
-    // Разница углов (чтобы не срабатывало, если идем в обратную сторону)
-    const azDiff = Math.abs(((Math.round(userAz) - target.azimuth + 540) % 360) - 180);
+    const dist = Math.round(getDist(pos[0], pos[1], target.coords[0], target.coords[1]));
+    const azDiff = Math.abs(((Math.round(az) - target.azimuth + 540) % 360) - 180);
 
-    // Обновление UI
     document.getElementById('targetText').textContent = target.text;
-    document.getElementById('distText').textContent = `Дистанция: ${dist} м`;
+    document.getElementById('distText').textContent = `${dist} м`;
     document.getElementById('speedText').textContent = `${speed} км/ч`;
-    document.getElementById('azText').textContent = `Азимут: ${Math.round(userAz)}°`;
     document.getElementById('targetAzText').textContent = `Цель: ${target.azimuth}°`;
 
-    // Условие срабатывания
-    const triggerDist = +document.getElementById('distanceTrigger').value || 20;
-    if (dist <= triggerDist && azDiff <= 60) {
+    if (dist <= (+document.getElementById('distanceTrigger').value) && azDiff <= 60) {
         speak(target.text);
         map.geoObjects.remove(target.placemark);
         points.shift();
-        renderRoute();
+        drawRoute();
     }
 }
 
-/* ==== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==== */
-function averageAngle(arr) {
-    let x = 0, y = 0;
-    arr.forEach(a => {
-        let r = a * Math.PI / 180;
-        x += Math.cos(r); y += Math.sin(r);
-    });
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
+/* ==== ВСПОМОГАТЕЛЬНОЕ ==== */
+function getDist(la1, lo1, la2, lo2) {
     const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    const dLat = (la2 - la1) * Math.PI / 180;
+    const dLon = (lo2 - lo1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLon/2)**2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function averageAngle(arr) {
+    let x = 0, y = 0;
+    arr.forEach(a => { x += Math.cos(a * Math.PI / 180); y += Math.sin(a * Math.PI / 180); });
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
 function createArrowSVG(angle, color, label = '', active = false) {
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44">
-        <g transform="rotate(${angle},22,22)">
-            <path d="M22,2 L34,34 L22,28 L10,34 Z" fill="${color}" stroke="white" stroke-width="2" />
-        </g>
-        ${label ? `<circle cx="22" cy="22" r="8" fill="white" stroke="black" />
-        <text x="22" y="26" font-size="10" text-anchor="middle" font-weight="bold">${label}</text>` : ''}
-    </svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><g transform="rotate(${angle},22,22)"><path d="M22,2 L34,34 L22,28 L10,34 Z" fill="${color}" stroke="white" stroke-width="2"/></g>${label ? `<circle cx="22" cy="22" r="8" fill="white" stroke="black"/><text x="22" y="26" font-size="10" text-anchor="middle" font-weight="bold">${label}</text>` : ''}</svg>`;
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
-function renderRoute() {
+function drawRoute() {
     const container = document.getElementById('targets');
     container.innerHTML = '';
-    
-    // Удаляем старые метки (кроме позиции игрока)
     map.geoObjects.each(o => { if (o !== userPlacemark) map.geoObjects.remove(o); });
-
     points.forEach((p, i) => {
-        const isActive = i === 0;
-        
-        // Метка на карте
-        p.placemark = new ymaps.Placemark(p.coords, { hintContent: p.text }, {
-            iconLayout: 'default#image',
-            iconImageHref: createArrowSVG(p.azimuth, p.color || '#007bff', p.id, isActive),
+        const active = i === 0;
+        p.placemark = new ymaps.Placemark(p.coords, {}, {
+            iconLayout: 'default#image', iconImageHref: createArrowSVG(p.azimuth, p.color || '#007bff', p.id, active),
             iconImageSize: [40, 40], iconImageOffset: [-20, -20]
         });
         map.geoObjects.add(p.placemark);
-
-        // Строка в списке
-        const div = document.createElement('div');
-        div.className = isActive ? 'active' : '';
-        div.innerHTML = `<b>${p.id}.</b> ${p.text} <br><small>${p.azimuth}°</small>`;
-        div.onclick = () => {
-            if (confirm("Перепрыгнуть к этой точке?")) {
-                points = points.slice(i);
-                renderRoute();
-            }
-        };
-        container.appendChild(div);
+        const d = document.createElement('div');
+        d.className = active ? 'active' : '';
+        d.innerHTML = `<b>${p.id}.</b> ${p.text} (${p.azimuth}°)`;
+        d.onclick = () => { if(confirm("Перейти?")) { points = points.slice(i); drawRoute(); } };
+        container.appendChild(d);
     });
 }
 
-/* ==== ЗАГРУЗКА ДАННЫХ ==== */
-async function loadGistFiles() {
-    const gistId = '7d43c5ede26775934e66792a12fe656d';
+async function loadGist() {
     try {
-        const res = await fetch(`https://api.github.com/gists/${gistId}`);
+        const res = await fetch(`https://api.github.com/gists/7d43c5ede26775934e66792a12fe656d`);
         const data = await res.json();
-        const select = document.getElementById('gistSelect');
-        select.innerHTML = '<option value="">-- Выберите маршрут --</option>';
-        for (let file in data.files) {
-            if (file.endsWith('.json')) {
-                const opt = document.createElement('option');
-                opt.value = data.files[file].raw_url;
-                opt.textContent = file.replace('.json', '');
-                select.appendChild(opt);
+        const s = document.getElementById('gistSelect');
+        for (let f in data.files) {
+            if (f.endsWith('.json')) {
+                const o = document.createElement('option');
+                o.value = data.files[f].raw_url;
+                o.textContent = f.replace('.json','');
+                s.appendChild(o);
             }
         }
-    } catch (e) { console.error("Gist error", e); }
+        s.onchange = async () => {
+            const r = await fetch(s.value);
+            const d = await r.json();
+            points = d.map((p, i) => ({ id: i + 1, coords: [p.lat, p.lon], azimuth: p.azimuth, text: p.command, color: p.color }));
+            drawRoute();
+        };
+    } catch(e){}
 }
-
-document.getElementById('gistSelect').onchange = async (e) => {
-    if (!e.target.value) return;
-    const res = await fetch(e.target.value);
-    const data = await res.json();
-    points = data.map((p, i) => ({
-        id: i + 1, coords: [p.lat, p.lon], azimuth: p.azimuth, text: p.command, color: p.color
-    }));
-    renderRoute();
-};
 
 document.getElementById('jsonFile').onchange = (e) => {
     const reader = new FileReader();
     reader.onload = () => {
-        const data = JSON.parse(reader.result);
-        points = data.map((p, i) => ({
-            id: i + 1, coords: [p.lat, p.lon], azimuth: p.azimuth, text: p.command, color: p.color
-        }));
-        renderRoute();
+        const d = JSON.parse(reader.result);
+        points = d.map((p, i) => ({ id: i + 1, coords: [p.lat, p.lon], azimuth: p.azimuth, text: p.command, color: p.color }));
+        drawRoute();
     };
     reader.readAsText(e.target.files[0]);
 };
 
-/* ==== UI ИВЕНТЫ ==== */
-document.getElementById('start').onclick = startApp;
 document.getElementById('togglePanelBtn').onclick = () => {
     const p = document.getElementById('panel');
     p.style.display = p.style.display === 'block' ? 'none' : 'block';
 };
-document.getElementById('toggleAutoCenter').onclick = (e) => {
-    autoCenter = !autoCenter;
-    e.target.textContent = `Автоцентр: ${autoCenter ? 'Вкл' : 'Выкл'}`;
-    e.target.style.background = autoCenter ? '#6c757d' : '#dc3545';
-};
-
+document.getElementById('start').onclick = startApp;
 </script>
 </body>
 </html>
