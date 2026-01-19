@@ -2,19 +2,19 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <title>Навигатор: Нейронный Голос</title>
+    <title>Google Навигатор: Точный триггер</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <!-- Яндекс Карты (Замените ВАШ_API_КЛЮЧ на свой) -->
+    <!-- Яндекс Карты (Не забудьте вставить свой API Ключ) -->
     <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
 
     <style>
         html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: -apple-system, sans-serif; overflow: hidden; background: #000; }
         #map { width: 100%; height: 100%; position: absolute; }
         
-        /* Экран старта */
+        /* Начальный экран */
         #start { 
             position: absolute; inset: 0; z-index: 100; 
-            background: #111; color: white; 
+            background: #0f0f0f; color: white; 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
             cursor: pointer; text-align: center; padding: 20px;
         }
@@ -35,57 +35,56 @@
 
         .group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         label { display: block; font-size: 11px; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 5px; }
-        select, input, button { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        select, input, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+        button { background: #4285f4; color: white; border: none; font-weight: bold; cursor: pointer; }
         
         /* Инфо-панель снизу */
         #info { 
             position: absolute; bottom: 0; width: 100%; background: white; 
             padding: 15px; z-index: 30; box-shadow: 0 -2px 15px rgba(0,0,0,0.1); box-sizing: border-box;
         }
-        .main-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #000; }
+        .main-text { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #4285f4; }
         .stats { display: flex; justify-content: space-between; font-size: 13px; color: #555; }
 
-        /* Список целей в меню */
-        #targets { margin-top: 10px; }
-        #targets div { padding: 8px; border-bottom: 1px solid #f0f0f0; font-size: 13px; cursor: pointer; }
-        #targets div.active { color: #007bff; font-weight: bold; background: #f0f7ff; }
+        #targets div { padding: 10px; border-bottom: 1px solid #f0f0f0; font-size: 14px; cursor: pointer; }
+        #targets div.active { color: #4285f4; font-weight: bold; background: #f1f3f4; border-left: 4px solid #4285f4; }
     </style>
 </head>
 <body>
 
 <div id="start">
-    <h1 style="margin-bottom:10px">Навигатор</h1>
-    <p>Нажмите для активации GPS и звука</p>
-    <p style="font-size: 12px; color: #666; margin-top: 20px;">Для качественного голоса используйте Microsoft Edge</p>
+    <h1 style="color:#4285f4; margin-bottom: 10px;">Google Навигатор</h1>
+    <p>Нажмите для запуска GPS и облачной озвучки</p>
+    <p style="font-size: 12px; color: #666; margin-top: 20px;">Лучше всего работает в Google Chrome</p>
 </div>
 
 <button id="togglePanelBtn">☰</button>
 
 <div id="panel">
     <div class="group">
-        <label>Голос озвучки</label>
-        <select id="voiceSelect"><option value="">Загрузка голосов...</option></select>
-        <button onclick="testVoice()" style="background:#f8f9fa; color:#333; margin-top:8px; border:1px solid #ddd">Проверить голос</button>
+        <label>Голос Google (Cloud)</label>
+        <select id="voiceSelect"><option value="">Поиск голосов...</option></select>
+        <button onclick="testVoice()" style="background:#f1f3f4; color:#333; margin-top:8px; border:1px solid #ddd">Проверить звук</button>
     </div>
 
     <div class="group">
         <label>Маршрут</label>
-        <button onclick="document.getElementById('jsonFile').click()">📁 Загрузить JSON</button>
+        <button onclick="document.getElementById('jsonFile').click()">📂 Загрузить файл JSON</button>
         <input id="jsonFile" type="file" accept=".json" style="display:none">
         <select id="gistSelect" style="margin-top:10px"><option value="">Загрузка Gists...</option></select>
     </div>
 
     <div class="group">
-        <label>Дистанция триггера: <span id="distVal">20</span>м</label>
-        <input type="range" id="distanceTrigger" min="5" max="100" value="20" oninput="distVal.textContent=value">
+        <label>Дистанция триггера (метры)</label>
+        <!-- Поле ввода числа вместо ползунка -->
+        <input type="number" id="distanceTrigger" value="20" min="1" max="999">
     </div>
 
     <div id="targets"></div>
 </div>
 
 <div id="info">
-    <div class="main-text" id="targetText">Маршрут не загружен</div>
+    <div class="main-text" id="targetText">Ожидание маршрута...</div>
     <div class="stats">
         <span id="distText">Дистанция: ---</span>
         <span id="speedText">0 км/ч</span>
@@ -100,12 +99,12 @@ let map, userPlacemark, points = [], autoCenter = true;
 let azHistory = [], lastAzimuth = 0;
 let currentVoice = null;
 
-/* ==== ЛОГИКА ОЗВУЧКИ (Microsoft Edge Natural) ==== */
+/* ==== ОЗВУЧКА GOOGLE ==== */
 function initVoices() {
     const voiceSelect = document.getElementById('voiceSelect');
     
     function updateList() {
-        let voices = speechSynthesis.getVoices();
+        const voices = window.speechSynthesis.getVoices();
         if (voices.length === 0) return;
 
         voiceSelect.innerHTML = '';
@@ -114,75 +113,45 @@ function initVoices() {
         ruVoices.forEach(voice => {
             const option = document.createElement('option');
             option.value = voice.name;
+            const isGoogle = voice.name.includes('Google');
+            option.textContent = isGoogle ? "☁️ " + voice.name : "🔈 " + voice.name;
             
-            // Проверяем, нейронный ли это голос (Edge Online)
-            const isNeural = voice.name.includes('Online') || voice.name.includes('Natural');
-            option.textContent = isNeural ? "⭐ " + voice.name : voice.name;
-            
-            // Приоритет автоматического выбора: Дмитрий или Светлана (Online)
-            if (!currentVoice) {
-                if (voice.name.includes('Dmitry') && isNeural) {
-                    option.selected = true;
-                    currentVoice = voice;
-                } else if (voice.name.includes('Svetlana') && isNeural && !currentVoice) {
-                    option.selected = true;
-                    currentVoice = voice;
-                }
-            } else if (currentVoice.name === voice.name) {
+            if (isGoogle && !currentVoice) {
                 option.selected = true;
+                currentVoice = voice;
             }
-            
             voiceSelect.appendChild(option);
         });
-        
+
         if (!currentVoice && ruVoices.length > 0) currentVoice = ruVoices[0];
     }
 
-    // Edge подгружает Online голоса чуть позже, поэтому опрашиваем несколько раз
     updateList();
     if (speechSynthesis.onvoiceschanged !== undefined) {
         speechSynthesis.onvoiceschanged = updateList;
     }
-    // Контрольные проверки через 1 и 3 секунды
-    setTimeout(updateList, 1000);
-    setTimeout(updateList, 3000);
-
-    voiceSelect.onchange = () => {
-        currentVoice = speechSynthesis.getVoices().find(v => v.name === voiceSelect.value);
-        speak("Голос выбран");
-    };
 }
 
 function speak(text) {
     if (!text) return;
-    window.speechSynthesis.cancel(); // Остановить текущую речь
+    window.speechSynthesis.cancel(); 
     const utter = new SpeechSynthesisUtterance(text);
     if (currentVoice) utter.voice = currentVoice;
     utter.lang = 'ru-RU';
     utter.rate = 1.0;
     utter.pitch = 1.0;
-    
-    // Фикс для мобильных: иногда нужно "разбудить" синтезатор
     window.speechSynthesis.speak(utter);
-    
-    // Заплатка для зависаний в Chrome/Edge
-    let r = setInterval(() => {
-        if (!speechSynthesis.speaking) clearInterval(r);
-        else speechSynthesis.resume();
-    }, 1000);
 }
 
 function testVoice() {
-    if (!currentVoice) { alert("Голоса еще не загружены"); return; }
-    speak("Проверка связи. Это высококачественный голос.");
+    speak("Проверка облачного голоса Гугл. Дистанция установлена на " + document.getElementById('distanceTrigger').value + " метров.");
 }
 
-/* ==== ГЕОЛОКАЦИЯ И КАРТА ==== */
+/* ==== GPS И КАРТА ==== */
 async function startApp() {
     document.getElementById('start').remove();
-    initVoices(); // Инициализация списка голосов
+    initVoices();
     
-    // Блокировка выключения экрана
     if ('wakeLock' in navigator) {
         try { await navigator.wakeLock.request('screen'); } catch(e){}
     }
@@ -194,18 +163,16 @@ async function startApp() {
 
         userPlacemark = new ymaps.Placemark([0, 0], {}, {
             iconLayout: 'default#image',
-            iconImageHref: createArrowSVG(0, 'red'),
+            iconImageHref: createArrowSVG(0, '#4285f4'),
             iconImageSize: [44, 44], iconImageOffset: [-22, -22]
         });
 
         map.geoObjects.add(userPlacemark);
         
-        // Запуск GPS
         navigator.geolocation.watchPosition(p => {
             const coords = [p.coords.latitude, p.coords.longitude];
             const speed = p.coords.speed ? (p.coords.speed * 3.6).toFixed(1) : 0;
             
-            // Сглаживание азимута
             if (p.coords.heading !== null && speed > 2) {
                 azHistory.push(p.coords.heading);
                 if (azHistory.length > 5) azHistory.shift();
@@ -214,7 +181,7 @@ async function startApp() {
             lastAzimuth = avgAz;
 
             userPlacemark.geometry.setCoordinates(coords);
-            userPlacemark.options.set('iconImageHref', createArrowSVG(avgAz, 'red'));
+            userPlacemark.options.set('iconImageHref', createArrowSVG(avgAz, '#4285f4'));
             
             if (autoCenter) map.setCenter(coords, map.getZoom(), { duration: 400 });
 
@@ -223,7 +190,6 @@ async function startApp() {
     });
 
     loadGist();
-    // Первый "тихий" запуск звука для разблокировки аудио в браузере
     speak(""); 
 }
 
@@ -231,18 +197,16 @@ function checkLogic(pos, speed, az) {
     if (!points.length) return;
     const target = points[0];
     const dist = Math.round(getDist(pos[0], pos[1], target.coords[0], target.coords[1]));
-    
-    // Разница углов (чтобы не болтало при движении спиной)
     const azDiff = Math.abs(((Math.round(az) - target.azimuth + 540) % 360) - 180);
 
-    // Обновление UI
     document.getElementById('targetText').textContent = target.text;
-    document.getElementById('distText').textContent = `Дистанция: ${dist} м`;
+    document.getElementById('distText').textContent = `До цели: ${dist} м`;
     document.getElementById('speedText').textContent = `${speed} км/ч`;
-    document.getElementById('targetAzText').textContent = `Цель: ${target.azimuth}°`;
+    document.getElementById('targetAzText').textContent = `Курс: ${target.azimuth}°`;
 
-    // Срабатывание
-    const triggerDist = +document.getElementById('distanceTrigger').value;
+    // Читаем значение из поля ввода
+    const triggerDist = parseInt(document.getElementById('distanceTrigger').value) || 20;
+
     if (dist <= triggerDist && azDiff <= 60) {
         speak(target.text);
         map.geoObjects.remove(target.placemark);
@@ -274,23 +238,18 @@ function createArrowSVG(angle, color, label = '', active = false) {
 function drawRoute() {
     const container = document.getElementById('targets');
     container.innerHTML = '';
-    
-    // Чистим старые метки
     map.geoObjects.each(o => { if (o !== userPlacemark) map.geoObjects.remove(o); });
-
     points.forEach((p, i) => {
         const active = i === 0;
-        p.placemark = new ymaps.Placemark(p.coords, { hintContent: p.text }, {
-            iconLayout: 'default#image', 
-            iconImageHref: createArrowSVG(p.azimuth, p.color || '#007bff', p.id, active),
+        p.placemark = new ymaps.Placemark(p.coords, {}, {
+            iconLayout: 'default#image', iconImageHref: createArrowSVG(p.azimuth, p.color || '#4285f4', p.id, active),
             iconImageSize: [40, 40], iconImageOffset: [-20, -20]
         });
         map.geoObjects.add(p.placemark);
-
         const d = document.createElement('div');
         d.className = active ? 'active' : '';
-        d.innerHTML = `<b>${p.id}.</b> ${p.text} <small>(${p.azimuth}°)</small>`;
-        d.onclick = () => { if(confirm("Пропустить до этой точки?")) { points = points.slice(i); drawRoute(); } };
+        d.innerHTML = `<b>${p.id}.</b> ${p.text} (${p.azimuth}°)`;
+        d.onclick = () => { if(confirm("Пропустить?")) { points = points.slice(i); drawRoute(); } };
         container.appendChild(d);
     });
 }
@@ -315,7 +274,7 @@ async function loadGist() {
             points = d.map((p, i) => ({ id: i + 1, coords: [p.lat, p.lon], azimuth: p.azimuth, text: p.command, color: p.color }));
             drawRoute();
         };
-    } catch(e){ console.error("Gist load failed"); }
+    } catch(e){}
 }
 
 /* ==== СОБЫТИЯ ==== */
