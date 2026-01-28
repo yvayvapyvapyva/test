@@ -1,5 +1,5 @@
 [
   {"name": "1", "file": "1.json"},
-  {"name": "", "file": "2.json"},
+  {"name": "2", "file": "2.json"},
   {"name": "3", "file": "3.json"}
 ]
