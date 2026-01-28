@@ -56,11 +56,8 @@ document.getElementById('start').onclick = async () => {
     document.getElementById('start').remove();
     document.getElementById('panel').style.display = 'block';
     document.getElementById('togglePanel').style.display = 'flex';
-    
-    // Подготовка аудио как в оригинале
     new Audio().play().catch(()=>{}); 
     speechSynthesis.speak(new SpeechSynthesisUtterance(''));
-
     if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
     initMap();
 };
@@ -71,14 +68,10 @@ function toggleCenter() {
     document.getElementById('toggleAutoCenter').textContent = `Автоцентр: ${autoCenter ? 'Вкл' : 'Выкл'}`;
 }
 
-// ВОССТАНОВЛЕНО: Прямое управление свойствами меток для мгновенного скрытия/показа облаков
 function toggleLabels() {
     showLabels = !showLabels;
     points.forEach((p, i) => {
-        const isPassed = i < currentIndex;
-        if (p.placemark) {
-            p.placemark.properties.set('iconContent', (showLabels && !isPassed) ? p.text : "");
-        }
+        if (p.placemark) p.placemark.properties.set('iconContent', (showLabels && i >= currentIndex) ? p.text : "");
     });
 }
 
@@ -86,38 +79,35 @@ function initMap(){
     ymaps.ready(()=>{
         map = new ymaps.Map("map", { center:[0,0], zoom:18, type:'yandex#satellite', controls:[] });
         userPlacemark = new ymaps.Placemark([0,0],{},{
-            iconLayout:'default#image',
-            iconImageHref: getIcon(0, 'red', false, ''),
-            iconImageSize:[40,40], iconImageOffset:[-20,-20]
+            iconLayout:'default#image', iconImageHref: getIcon(0, 'red', false, ''), iconImageSize:[40,40], iconImageOffset:[-20,-20]
         });
         map.geoObjects.add(userPlacemark);
-        navigator.geolocation.watchPosition(onGPS, err => console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:5000});
+        navigator.geolocation.watchPosition(onGPS, null, {enableHighAccuracy:true, maximumAge:0});
     });
 }
 
 function onGPS(p){
     const c = [p.coords.latitude, p.coords.longitude];
     lastSpeed = p.coords.speed != null ? (p.coords.speed * 3.6).toFixed(1) : 0;
-    if (p.coords.heading !== null && !isNaN(p.coords.heading) && lastSpeed >= 3) {
+    if (p.coords.heading !== null && lastSpeed >= 3) {
         azHistory.push(p.coords.heading);
         if (azHistory.length > 3) azHistory.shift();
+        lastAzimuth = azHistory.reduce((a,b)=>a+b)/azHistory.length;
     }
-    lastAzimuth = azHistory.length ? azHistory.reduce((a,b)=>a+b)/azHistory.length : lastAzimuth;
-    
     userPlacemark.geometry.setCoordinates(c);
     userPlacemark.options.set('iconImageHref', getIcon(lastAzimuth, 'red', false, ''));
     if (autoCenter) map.setCenter(c);
-    checkDistance(c);
+    updateTargetStatus(c);
 }
 
-function getIcon(azimuth, color, isSelected, id, opacity = 1) {
-    const stroke = isSelected ? '#2ecc71' : '#000';
-    const inner = id ? `<circle cx="20" cy="20" r="9" fill="white" fill-opacity="${opacity}" stroke="${color}" stroke-opacity="${opacity}" stroke-width="2"/><text x="20" y="24" font-size="11" font-family="Arial" font-weight="900" text-anchor="middle" fill="black" fill-opacity="${opacity}">${id}</text>` : '';
-    return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g transform="rotate(${azimuth},20,20)" opacity="${opacity}"><polygon points="20,2 35,35 20,26 5,35" fill="${color}" stroke="${stroke}" stroke-width="${isSelected?3:1.5}"/></g>${inner}</svg>`);
+function getIcon(az, col, sel, id, op = 1) {
+    const stroke = sel ? '#2ecc71' : '#000';
+    const inner = id ? `<circle cx="20" cy="20" r="9" fill="white" fill-opacity="${op}" stroke="${col}" stroke-opacity="${op}" stroke-width="2"/><text x="20" y="24" font-size="11" font-family="Arial" font-weight="900" text-anchor="middle" fill="black" fill-opacity="${op}">${id}</text>` : '';
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g transform="rotate(${az},20,20)" opacity="${op}"><polygon points="20,2 35,35 20,26 5,35" fill="${col}" stroke="${stroke}" stroke-width="${sel?3:1.5}"/></g>${inner}</svg>`);
 }
 
-function checkDistance(pos){
-    if (currentIndex >= points.length) return;
+function updateTargetStatus(pos) {
+    if (currentIndex >= points.length) { document.getElementById('info').textContent = 'Маршрут пройден'; return; }
     const p = points[currentIndex];
     const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(lastAzimuth) - p.azimuth + 540) % 360) - 180);
@@ -126,9 +116,8 @@ function checkDistance(pos){
     
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
         let played = false;
-        const audio = new Audio(`voice/${p.id}.mp3`);
-        audio.play().then(() => played = true).catch(() => {
-            if (!played) { played = true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); }
+        new Audio(`voice/${p.id}.mp3`).play().then(()=>played=true).catch(()=>{
+            if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); }
         });
         currentIndex++;
         rebuildRoute();
@@ -138,50 +127,38 @@ function checkDistance(pos){
 document.getElementById('jsonFile').onchange = e => {
     const r = new FileReader();
     r.onload = () => {
-        try {
-            points = JSON.parse(r.result).map(p => ({
-                id: p.id, coords: [parseFloat(p.lat), parseFloat(p.lon)],
-                azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
-            }));
-            currentIndex = 0;
-            rebuildRoute();
-            togglePanelUI();
-        } catch(err) { alert("Ошибка JSON"); }
+        points = JSON.parse(r.result).map(p => ({
+            id: p.id, coords: [+p.lat, +p.lon], azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
+        }));
+        currentIndex = 0; rebuildRoute(); togglePanelUI();
     };
     if(e.target.files[0]) r.readAsText(e.target.files[0]);
 };
 
 function rebuildRoute() {
-    // Очистка как в оригинале
-    const toRemove = [];
-    map.geoObjects.each(o => { if(o !== userPlacemark) toRemove.push(o); });
-    toRemove.forEach(o => map.geoObjects.remove(o));
-
+    const toRm = []; map.geoObjects.each(o => o !== userPlacemark && toRm.push(o));
+    toRm.forEach(o => map.geoObjects.remove(o));
     const list = document.getElementById('targets');
     list.innerHTML = '';
 
     points.forEach((p, i) => {
-        const isActive = i === currentIndex;
-        const isPassed = i < currentIndex;
-        
-        p.placemark = new ymaps.Placemark(p.coords, 
-            { iconContent: (showLabels && !isPassed) ? p.text : "" },
-            { 
-                iconLayout:'default#imageWithContent',
-                iconImageHref: getIcon(p.azimuth, p.color, isActive, p.id, isPassed ? 0.3 : 1),
-                iconImageSize:[40,40], iconImageOffset:[-20,-20],
-                iconContentOffset: [25, -10],
-                iconContentLayout: ymaps.templateLayoutFactory.createClass(
-                    '{% if properties.iconContent %}<div class="cmd-bubble">$[properties.iconContent]</div>{% endif %}'
-                )
-            }
-        );
+        const active = i === currentIndex, passed = i < currentIndex;
+        p.placemark = new ymaps.Placemark(p.coords, { iconContent: (showLabels && !passed) ? p.text : "" }, {
+            iconLayout:'default#imageWithContent', iconImageHref: getIcon(p.azimuth, p.color, active, p.id, passed ? 0.3 : 1),
+            iconImageSize:[40,40], iconImageOffset:[-20,-20], iconContentOffset: [25, -10],
+            iconContentLayout: ymaps.templateLayoutFactory.createClass('{% if properties.iconContent %}<div class="cmd-bubble">$[properties.iconContent]</div>{% endif %}')
+        });
         map.geoObjects.add(p.placemark);
 
         const d = document.createElement('div');
-        d.className = (isActive ? 'active' : '') + (isPassed ? ' passed' : '');
+        d.className = (active ? 'active' : '') + (passed ? ' passed' : '');
         d.textContent = `${p.id}. ${p.text}`;
-        d.onclick = () => { currentIndex = i; rebuildRoute(); };
+        d.onclick = () => { 
+            currentIndex = i; 
+            rebuildRoute(); 
+            const up = userPlacemark.geometry.getCoordinates();
+            updateTargetStatus(up); 
+        };
         list.appendChild(d);
     });
 }
