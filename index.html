@@ -2,44 +2,35 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Навигация с озвучкой</title>
+<title>Навигация</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
 <style>
-    body, html { margin: 0; height: 100%; font-family: 'Inter', Arial, sans-serif; overflow: hidden; background: #000; }
+    body, html { margin: 0; height: 100%; font-family: 'Inter', Arial, sans-serif; overflow: hidden; }
     #map { position: absolute; inset: 0; }
-    
-    /* Начальный экран для разблокировки аудио */
-    #start { position: absolute; inset: 0; z-index: 2000; background: #2f80ed; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; text-align: center; padding: 20px; }
-    
+    #start { position: absolute; inset: 0; z-index: 2000; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
     #panel { position: absolute; top: 10px; right: 10px; width: 300px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); backdrop-filter: blur(10px); transition: 0.3s; display: none; }
     #panel.collapsed { transform: translateY(-150%); opacity: 0; pointer-events: none; }
-    
     #togglePanel { position: absolute; bottom: 85px; right: 20px; z-index: 1001; width: 50px; height: 50px; border-radius: 25px; border: none; background: #2f80ed; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; }
-    
-    #info { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); padding: 12px; font-weight: bold; font-size: 14px; z-index: 15; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); border-top: 1px solid #ddd; min-height: 50px; box-sizing: border-box; transition: color 0.3s ease; }
-    #info.ready { color: #27ae60; } /* Зеленый, когда MP3 готов */
-
+    #info { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); padding: 12px; font-weight: bold; font-size: 14px; z-index: 15; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); border-top: 1px solid #ddd; min-height: 40px; box-sizing: border-box; }
     .row { display: flex; gap: 8px; margin-bottom: 8px; }
     button, select { flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; background: #2f80ed; color: white; font-weight: bold; min-height: 44px; display: flex; align-items: center; justify-content: center; font-family: inherit; font-size: 14px; }
     select { background: #fff; color: #000; border: 1px solid #ddd; display: block; width: 100%; }
     button.secondary { background: #6c757d; }
-    
-    #targets { max-height: 180px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
-    #targets div { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; color: #333; }
-    #targets div.active { background: #e3f2fd; font-weight: bold; border-left: 4px solid #2f80ed; }
-    #targets div.passed { color: #aaa; text-decoration: line-through; }
-    
+    #targets { max-height: 200px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
+    #targets div { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
+    #targets div.active { background: #e3f2fd; font-weight: bold; border-left: 3px solid #2f80ed; }
+    #targets div.passed { color: #999; text-decoration: line-through; }
     .cmd-bubble { position: relative; background: #fff; border: 2px solid #333; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: bold; color: #000; box-shadow: 2px 2px 6px rgba(0,0,0,0.3); display: inline-block; max-width: 200px; word-wrap: break-word; }
-
+    /* Стиль для прогресс-бара */
+    #audioProgress { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; display: none; overflow: hidden; }
+    #audioProgressBar { height: 100%; background: #27ae60; width: 0%; transition: width 0.3s; }
     @media (max-width: 480px) { #panel { width: auto; left: 10px; right: 10px; } }
 </style>
 </head>
 <body>
-
-<div id="start">НАЖМИТЕ ДЛЯ ЗАПУСКА<br><small style="font-size: 14px; font-weight: normal;">(разрешить звук и GPS)</small></div>
+<div id="start">Нажмите для запуска</div>
 <button id="togglePanel" onclick="togglePanelUI()">≡</button>
-
 <div id="panel">
     <select id="roadSelect" onchange="loadRoadFromServer(this.value)" style="margin-bottom:8px;">
         <option value="">-- Выберите маршрут --</option>
@@ -49,56 +40,26 @@
         <button class="secondary" onclick="toggleLabels()">👁️</button>
     </div>
     <input id="jsonFile" type="file" accept=".json" style="display:none" onchange="loadLocalJSON(event)">
-    <div style="margin-top:10px;">
-        <label style="font-size:11px; font-weight:bold; color: #666;">ДИСТАНЦИЯ ТРИГГЕРА (м)</label>
-        <input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px; box-sizing: border-box;">
-    </div>
+    
+    <div id="audioProgress"><div id="audioProgressBar"></div></div>
+
+    <div style="margin-top:10px;"><label style="font-size:12px; font-weight:bold;">Триггер (м)</label><input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px; box-sizing: border-box;"></div>
     <div class="row" style="margin-top:10px;"><button id="toggleAutoCenter" class="secondary" onclick="toggleCenter()">Автоцентр: Вкл</button></div>
     <div id="targets"></div>
 </div>
-
 <div id="info">Ожидание GPS…</div>
 <div id="map"></div>
 
 <script>
-let map, userPlacemark, points = [], currentIndex = 0;
-let autoCenter = true, showLabels = false, wakeLock = null;
-let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
-let currentRoadFolder = 'voice';
-let nextAudio = new Audio();
-let audioReady = false;
+let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
 
-// 1. ЗАПУСК И РАЗБЛОКИРОВКА АУДИО
 document.getElementById('start').onclick = async function() {
-    this.remove(); 
-    document.getElementById('panel').style.display = 'block'; 
-    document.getElementById('togglePanel').style.display = 'flex';
-    
-    // Разблокировка аудио-движка для мобильных браузеров
-    nextAudio.play().catch(() => {});
-    nextAudio.pause();
-    
-    // Тестовый беззвучный синтез для разблокировки TTS
-    const silentMsg = new SpeechSynthesisUtterance('');
-    window.speechSynthesis.speak(silentMsg);
-
-    if ('wakeLock' in navigator) {
-        try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
-    }
-    
-    initMap();
-    loadRoadList();
+    this.remove(); document.getElementById('panel').style.display = 'block'; document.getElementById('togglePanel').style.display = 'flex';
+    new Audio().play().catch(()=>{}); speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+    initMap(); loadRoadList();
 };
 
-// События готовности аудио
-nextAudio.oncanplaythrough = () => { audioReady = true; updateReadyStatus(); };
-nextAudio.onerror = () => { audioReady = false; updateReadyStatus(); };
-
-function updateReadyStatus() {
-    document.getElementById('info').classList.toggle('ready', audioReady);
-}
-
-// 2. РАБОТА С ФАЙЛАМИ
 async function loadRoadList() {
     try {
         const res = await fetch('roads/list.json');
@@ -106,11 +67,10 @@ async function loadRoadList() {
         const sel = document.getElementById('roadSelect');
         list.forEach(r => {
             const opt = document.createElement('option');
-            opt.value = r.file;
-            opt.textContent = r.name || r.file;
+            opt.value = r.file; opt.textContent = r.name || r.file;
             sel.appendChild(opt);
         });
-    } catch(e) { console.error("Список не найден:", e); }
+    } catch(e) { console.error("Ошибка списка:", e); }
 }
 
 async function loadRoadFromServer(file) {
@@ -124,107 +84,65 @@ async function loadRoadFromServer(file) {
 
 function loadLocalJSON(e) {
     if (!e.target.files.length) return;
-    const f = e.target.files[0];
-    currentRoadFolder = 'roads/' + f.name.replace('.json', '');
+    const file = e.target.files[0];
+    currentRoadFolder = 'roads/' + file.name.replace('.json', '');
     const r = new FileReader();
     r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { alert("Ошибка JSON"); } };
-    r.readAsText(f);
+    r.readAsText(file);
 }
 
 function processJSON(data) {
-    points = data.map(p => ({ 
-        id: p.id, 
-        coords: [+p.lat, +p.lon], 
-        azimuth: p.azimuth, 
-        text: p.command || '', 
-        color: p.color || 'Gold' 
-    }));
-    currentIndex = 0;
-    preloadNext(); 
-    rebuildRoute();
+    points = data.map(p => ({ id: p.id, coords: [+p.lat, +p.lon], azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold' }));
+    currentIndex = 0; rebuildRoute();
+    preloadAudio();
 }
 
-function preloadNext() {
-    audioReady = false;
-    updateReadyStatus();
-    if (currentIndex < points.length) {
-        nextAudio.src = `${currentRoadFolder}/${points[currentIndex].id}.mp3`;
-        nextAudio.load();
-    }
+function preloadAudio() {
+    const bar = document.getElementById('audioProgressBar');
+    const container = document.getElementById('audioProgress');
+    if (!points.length) return;
+    
+    container.style.display = 'block';
+    bar.style.width = '0%';
+    let loaded = 0;
+
+    points.forEach(p => {
+        const audio = new Audio();
+        const update = () => {
+            loaded++;
+            bar.style.width = (loaded / points.length * 100) + '%';
+            if (loaded >= points.length) setTimeout(() => container.style.display = 'none', 1000);
+        };
+        audio.addEventListener('canplaythrough', update, { once: true });
+        audio.addEventListener('error', update, { once: true }); // Игнорируем ошибки (если файла нет)
+        audio.src = `${currentRoadFolder}/${p.id}.mp3`;
+        audio.load();
+    });
 }
 
-// 3. КАРТА И GPS
+function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
+function toggleCenter() { autoCenter = !autoCenter; document.getElementById('toggleAutoCenter').textContent = 'Автоцентр: '+(autoCenter?'Вкл':'Выкл'); }
+function toggleLabels() { showLabels = !showLabels; rebuildRoute(); }
+
 function initMap(){
     ymaps.ready(function(){
         map = new ymaps.Map("map", { center:[0,0], zoom:18, type:'yandex#satellite', controls:[] });
-        userPlacemark = new ymaps.Placemark([0,0],{},{ 
-            iconLayout:'default#image', 
-            iconImageHref: getIcon(0, 'red', false, '', 1), 
-            iconImageSize:[40,40], iconImageOffset:[-20,-20] 
-        });
+        userPlacemark = new ymaps.Placemark([0,0],{},{ iconLayout:'default#image', iconImageHref: getIcon(0, 'red', false, '', 1), iconImageSize:[40,40], iconImageOffset:[-20,-20] });
         map.geoObjects.add(userPlacemark);
         navigator.geolocation.watchPosition(onGPS, e => console.error(e), {enableHighAccuracy:true, maximumAge:0, timeout:5000});
     });
 }
 
 function onGPS(p){
-    const c = [p.coords.latitude, p.coords.longitude];
-    const speed = p.coords.speed != null ? p.coords.speed * 3.6 : 0;
+    const c = [p.coords.latitude, p.coords.longitude], speed = p.coords.speed != null ? p.coords.speed * 3.6 : 0;
     lastSpeed = speed.toFixed(1);
-
-    if (p.coords.heading !== null && speed >= 3) {
-        azHistory.push(p.coords.heading);
-        if (azHistory.length > 3) azHistory.shift();
-    }
+    if (p.coords.heading !== null && speed >= 3) { azHistory.push(p.coords.heading); if (azHistory.length > 3) azHistory.shift(); }
     lastAzimuth = azHistory.length ? averageAngle(azHistory) : lastAzimuth;
-
     userPlacemark.geometry.setCoordinates(c);
     userPlacemark.options.set('iconImageHref', getIcon(lastAzimuth, 'red', false, '', 1));
-    
     if (autoCenter) map.setCenter(c);
     checkDistance(c, lastSpeed, lastAzimuth);
 }
-
-function checkDistance(pos, speed, az){
-    if (currentIndex >= points.length) return;
-    const p = points[currentIndex];
-    const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
-    const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
-    
-    updateInfoUI(p, dist, az, speed);
-
-    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        playCommand(p);
-        currentIndex++;
-        preloadNext();
-        rebuildRoute();
-    }
-}
-
-function playCommand(p) {
-    let played = false;
-    const say = () => { 
-        if(!played) { 
-            played = true; 
-            const msg = new SpeechSynthesisUtterance(p.text);
-            msg.lang = 'ru-RU';
-            window.speechSynthesis.speak(msg); 
-        } 
-    };
-
-    if (audioReady) {
-        nextAudio.play().then(() => played = true).catch(say);
-    } else {
-        // Запасной вариант если прелоад не успел
-        const backupAudio = new Audio(`${currentRoadFolder}/${p.id}.mp3`);
-        backupAudio.play().then(() => played = true).catch(say);
-    }
-}
-
-// 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
-function toggleCenter() { autoCenter = !autoCenter; document.getElementById('toggleAutoCenter').textContent = 'Автоцентр: '+(autoCenter?'Вкл':'Выкл'); }
-function toggleLabels() { showLabels = !showLabels; rebuildRoute(); }
 
 function averageAngle(arr){
     let x=0, y=0;
@@ -238,42 +156,44 @@ function getIcon(az, col, sel, id, op = 1) {
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g transform="rotate(${az},20,20)" opacity="${op}"><polygon points="20,2 35,35 20,26 5,35" fill="${fill}" stroke="${strk}" stroke-width="${sel?3:1.5}"/></g>${inner}</svg>`);
 }
 
-function updateInfoUI(p, d, az, s) { 
+function updateInfoUI(p, d, az, s) {
     document.getElementById('info').innerHTML = p ? `№${p.id} | ${p.text}<br>Дист: ${d}м | Цель: ${p.azimuth}° | Курс: ${Math.round(az)}° | ${s} км/ч` : 'Маршрут пройден';
-    updateReadyStatus();
+}
+
+function checkDistance(pos, speed, az){
+    if (currentIndex >= points.length) return;
+    const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
+    const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
+    updateInfoUI(p, dist, az, speed);
+    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
+        let played = false; const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
+        const audio = new Audio(`${currentRoadFolder}/${p.id}.mp3`);
+        audio.play().then(()=>played=true).catch(say); audio.onerror = say;
+        currentIndex++; rebuildRoute();
+    }
 }
 
 function rebuildRoute() {
     if(!map) return;
-    const toRemove = []; 
-    map.geoObjects.each(o => { if(o !== userPlacemark) toRemove.push(o); });
+    const toRemove = []; map.geoObjects.each(o => { if(o !== userPlacemark) toRemove.push(o); });
     toRemove.forEach(o => map.geoObjects.remove(o));
-
-    const list = document.getElementById('targets'); 
-    list.innerHTML = '';
-
+    const list = document.getElementById('targets'); list.innerHTML = '';
     points.forEach((p, i) => {
         const active = i === currentIndex, passed = i < currentIndex, op = passed ? 0.3 : 1;
-        
-        p.placemark = new ymaps.Placemark(p.coords, { 
-            iconContent: (showLabels && !passed) ? p.text : "" 
-        }, { 
-            iconLayout:'default#imageWithContent', 
-            iconImageHref: getIcon(p.azimuth, p.color, active, p.id, op), 
-            iconImageSize:[40,40], iconImageOffset:[-20,-20], 
-            iconContentOffset: [35, -10], // Смещено на 10px правее
+        p.placemark = new ymaps.Placemark(p.coords, { iconContent: (showLabels && !passed) ? p.text : "" }, { 
+            iconLayout:'default#imageWithContent', iconImageHref: getIcon(p.azimuth, p.color, active, p.id, op), iconImageSize:[40,40], iconImageOffset:[-20,-20], iconContentOffset: [40, -10],
             iconContentLayout: ymaps.templateLayoutFactory.createClass('{% if properties.iconContent %}<div class="cmd-bubble">$[properties.iconContent]</div>{% endif %}')
         });
-
         map.geoObjects.add(p.placemark);
-        
-        const d = document.createElement('div');
-        d.textContent = `${p.id}. ${p.text}`;
-        if(active) d.className = 'active';
-        if(passed) d.className = 'passed';
-        d.onclick = function() { currentIndex = i; preloadNext(); rebuildRoute(); };
+        const d = document.createElement('div'); d.textContent = p.id + '. ' + p.text;
+        if(active) d.className = 'active'; if(passed) d.className = 'passed';
+        d.onclick = function() { currentIndex = i; rebuildRoute(); };
         list.appendChild(d);
     });
+    if (points.length) {
+        const p = points[currentIndex] || points[points.length-1], up = userPlacemark.geometry.getCoordinates();
+        updateInfoUI(p, Math.round(getDistance(up[0], up[1], p.coords[0], p.coords[1])), lastAzimuth, lastSpeed);
+    }
 }
 
 function getDistance(a,b,c,d){
