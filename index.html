@@ -14,7 +14,8 @@
     #togglePanel { position: absolute; bottom: 85px; right: 20px; z-index: 1001; width: 50px; height: 50px; border-radius: 25px; border: none; background: #2f80ed; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; }
     #info { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); padding: 12px; font-weight: bold; font-size: 14px; z-index: 15; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); border-top: 1px solid #ddd; min-height: 40px; box-sizing: border-box; }
     .row { display: flex; gap: 8px; margin-bottom: 8px; }
-    button { flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; background: #2f80ed; color: white; font-weight: bold; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+    button, select { flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; background: #2f80ed; color: white; font-weight: bold; min-height: 44px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+    select { background: #fff; color: #000; border: 1px solid #ddd; display: block; width: 100%; }
     button.secondary { background: #6c757d; }
     #targets { max-height: 200px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
     #targets div { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
@@ -28,9 +29,15 @@
 <div id="start">Нажмите для запуска</div>
 <button id="togglePanel" onclick="togglePanelUI()">≡</button>
 <div id="panel">
-    <div class="row"><button onclick="document.getElementById('jsonFile').click()">📂 JSON</button><button class="secondary" onclick="toggleLabels()">👁️</button></div>
-    <input id="jsonFile" type="file" accept=".json" style="display:none">
-    <div style="margin-top:10px;"><label style="font-size:12px; font-weight:bold;">Дистанция триггера (м)</label><input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px; box-sizing: border-box;"></div>
+    <select id="roadSelect" onchange="loadRoadFromServer(this.value)" style="margin-bottom:8px;">
+        <option value="">-- Выберите маршрут --</option>
+    </select>
+    <div class="row">
+        <button onclick="document.getElementById('jsonFile').click()">📂 Свой JSON</button>
+        <button class="secondary" onclick="toggleLabels()">👁️</button>
+    </div>
+    <input id="jsonFile" type="file" accept=".json" style="display:none" onchange="loadLocalJSON(event)">
+    <div style="margin-top:10px;"><label style="font-size:12px; font-weight:bold;">Триггер (м)</label><input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px; box-sizing: border-box;"></div>
     <div class="row" style="margin-top:10px;"><button id="toggleAutoCenter" class="secondary" onclick="toggleCenter()">Автоцентр: Вкл</button></div>
     <div id="targets"></div>
 </div>
@@ -44,8 +51,41 @@ document.getElementById('start').onclick = async function() {
     this.remove(); document.getElementById('panel').style.display = 'block'; document.getElementById('togglePanel').style.display = 'flex';
     new Audio().play().catch(()=>{}); speechSynthesis.speak(new SpeechSynthesisUtterance(''));
     if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
-    initMap();
+    initMap(); loadRoadList();
 };
+
+async function loadRoadList() {
+    try {
+        const res = await fetch('roads/list.json');
+        const list = await res.json();
+        const sel = document.getElementById('roadSelect');
+        list.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.file; opt.textContent = r.name || r.file;
+            sel.appendChild(opt);
+        });
+    } catch(e) { console.error("Ошибка списка:", e); }
+}
+
+async function loadRoadFromServer(file) {
+    if (!file) return;
+    try {
+        const res = await fetch('roads/' + file);
+        processJSON(await res.json());
+    } catch(e) { alert("Ошибка загрузки файла"); }
+}
+
+function loadLocalJSON(e) {
+    if (!e.target.files.length) return;
+    const r = new FileReader();
+    r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { alert("Ошибка JSON"); } };
+    r.readAsText(e.target.files[0]);
+}
+
+function processJSON(data) {
+    points = data.map(p => ({ id: p.id, coords: [+p.lat, +p.lon], azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold' }));
+    currentIndex = 0; rebuildRoute();
+}
 
 function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
 function toggleCenter() { autoCenter = !autoCenter; document.getElementById('toggleAutoCenter').textContent = 'Автоцентр: '+(autoCenter?'Вкл':'Выкл'); }
@@ -99,18 +139,6 @@ function checkDistance(pos, speed, az){
         currentIndex++; rebuildRoute();
     }
 }
-
-document.getElementById('jsonFile').onchange = function(e) {
-    if (!e.target.files.length) return;
-    const r = new FileReader();
-    r.onload = function() {
-        try {
-            points = JSON.parse(r.result).map(p => ({ id: p.id, coords: [+p.lat, +p.lon], azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold' }));
-            currentIndex = 0; rebuildRoute(); togglePanelUI();
-        } catch(err) { alert("Ошибка JSON"); }
-    };
-    r.readAsText(e.target.files[0]);
-};
 
 function rebuildRoute() {
     if(!map) return;
