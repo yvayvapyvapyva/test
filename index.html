@@ -29,13 +29,8 @@
 <div id="start">Нажмите для запуска</div>
 <button id="togglePanel" onclick="togglePanelUI()">≡</button>
 <div id="panel">
-    <select id="roadSelect" onchange="loadRoadFromServer(this.value)" style="margin-bottom:8px;">
-        <option value="">-- Выберите маршрут --</option>
-    </select>
-    <div class="row">
-        <button onclick="document.getElementById('jsonFile').click()">📂 Свой JSON</button>
-        <button class="secondary" onclick="toggleLabels()">👁️</button>
-    </div>
+    <select id="roadSelect" onchange="loadRoadFromServer(this.value)" style="margin-bottom:8px;"><option value="">-- Выберите маршрут --</option></select>
+    <div class="row"><button onclick="document.getElementById('jsonFile').click()">📂 Свой JSON</button><button class="secondary" onclick="toggleLabels()">👁️</button></div>
     <input id="jsonFile" type="file" accept=".json" style="display:none" onchange="loadLocalJSON(event)">
     <div style="margin-top:10px;"><label style="font-size:12px; font-weight:bold;">Триггер (м)</label><input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px; box-sizing: border-box;"></div>
     <div class="row" style="margin-top:10px;"><button id="toggleAutoCenter" class="secondary" onclick="toggleCenter()">Автоцентр: Вкл</button></div>
@@ -45,7 +40,7 @@
 <div id="map"></div>
 
 <script>
-let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
+let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice', nextAudio = new Audio();
 
 document.getElementById('start').onclick = async function() {
     this.remove(); document.getElementById('panel').style.display = 'block'; document.getElementById('togglePanel').style.display = 'flex';
@@ -56,14 +51,8 @@ document.getElementById('start').onclick = async function() {
 
 async function loadRoadList() {
     try {
-        const res = await fetch('roads/list.json');
-        const list = await res.json();
-        const sel = document.getElementById('roadSelect');
-        list.forEach(r => {
-            const opt = document.createElement('option');
-            opt.value = r.file; opt.textContent = r.name || r.file;
-            sel.appendChild(opt);
-        });
+        const res = await fetch('roads/list.json'), list = await res.json(), sel = document.getElementById('roadSelect');
+        list.forEach(r => { const opt = document.createElement('option'); opt.value = r.file; opt.textContent = r.name || r.file; sel.appendChild(opt); });
     } catch(e) { console.error("Ошибка списка:", e); }
 }
 
@@ -71,23 +60,27 @@ async function loadRoadFromServer(file) {
     if (!file) return;
     try {
         currentRoadFolder = 'roads/' + file.replace('.json', '');
-        const res = await fetch('roads/' + file);
-        processJSON(await res.json());
-    } catch(e) { alert("Ошибка загрузки файла"); }
+        const res = await fetch('roads/' + file); processJSON(await res.json());
+    } catch(e) { alert("Ошибка загрузки"); }
 }
 
 function loadLocalJSON(e) {
     if (!e.target.files.length) return;
-    const file = e.target.files[0];
-    currentRoadFolder = 'roads/' + file.name.replace('.json', '');
-    const r = new FileReader();
-    r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { alert("Ошибка JSON"); } };
-    r.readAsText(file);
+    const f = e.target.files[0]; currentRoadFolder = 'roads/' + f.name.replace('.json', '');
+    const r = new FileReader(); r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { alert("Ошибка JSON"); } };
+    r.readAsText(f);
 }
 
 function processJSON(data) {
     points = data.map(p => ({ id: p.id, coords: [+p.lat, +p.lon], azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold' }));
-    currentIndex = 0; rebuildRoute();
+    currentIndex = 0; preloadNext(); rebuildRoute();
+}
+
+function preloadNext() {
+    if (currentIndex < points.length) {
+        nextAudio.src = `${currentRoadFolder}/${points[currentIndex].id}.mp3`;
+        nextAudio.load();
+    }
 }
 
 function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
@@ -126,20 +119,16 @@ function getIcon(az, col, sel, id, op = 1) {
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g transform="rotate(${az},20,20)" opacity="${op}"><polygon points="20,2 35,35 20,26 5,35" fill="${fill}" stroke="${strk}" stroke-width="${sel?3:1.5}"/></g>${inner}</svg>`);
 }
 
-function updateInfoUI(p, d, az, s) {
-    document.getElementById('info').innerHTML = p ? `№${p.id} | ${p.text}<br>Дист: ${d}м | Цель: ${p.azimuth}° | Курс: ${Math.round(az)}° | ${s} км/ч` : 'Маршрут пройден';
-}
+function updateInfoUI(p, d, az, s) { document.getElementById('info').innerHTML = p ? `№${p.id} | ${p.text}<br>Дист: ${d}м | Цель: ${p.azimuth}° | Курс: ${Math.round(az)}° | ${s} км/ч` : 'Маршрут пройден'; }
 
 function checkDistance(pos, speed, az){
     if (currentIndex >= points.length) return;
-    const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
-    const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
+    const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1])), diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
         let played = false; const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
-        const audio = new Audio(`${currentRoadFolder}/${p.id}.mp3`);
-        audio.play().then(()=>played=true).catch(say); audio.onerror = say;
-        currentIndex++; rebuildRoute();
+        nextAudio.play().then(()=>played=true).catch(say); nextAudio.onerror = say;
+        currentIndex++; preloadNext(); rebuildRoute();
     }
 }
 
@@ -151,13 +140,13 @@ function rebuildRoute() {
     points.forEach((p, i) => {
         const active = i === currentIndex, passed = i < currentIndex, op = passed ? 0.3 : 1;
         p.placemark = new ymaps.Placemark(p.coords, { iconContent: (showLabels && !passed) ? p.text : "" }, { 
-            iconLayout:'default#imageWithContent', iconImageHref: getIcon(p.azimuth, p.color, active, p.id, op), iconImageSize:[40,40], iconImageOffset:[-20,-20], iconContentOffset: [40, -10],
+            iconLayout:'default#imageWithContent', iconImageHref: getIcon(p.azimuth, p.color, active, p.id, op), iconImageSize:[40,40], iconImageOffset:[-20,-20], iconContentOffset: [35, -10],
             iconContentLayout: ymaps.templateLayoutFactory.createClass('{% if properties.iconContent %}<div class="cmd-bubble">$[properties.iconContent]</div>{% endif %}')
         });
         map.geoObjects.add(p.placemark);
         const d = document.createElement('div'); d.textContent = p.id + '. ' + p.text;
         if(active) d.className = 'active'; if(passed) d.className = 'passed';
-        d.onclick = function() { currentIndex = i; rebuildRoute(); };
+        d.onclick = function() { currentIndex = i; preloadNext(); rebuildRoute(); };
         list.appendChild(d);
     });
     if (points.length) {
