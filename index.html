@@ -83,13 +83,13 @@
 <script>
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null;
 let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
+let isSpeaking = false; // Блокировка переключения, пока идет звук
 
 document.getElementById('start').onclick = async () => {
     document.getElementById('start').remove();
     document.getElementById('panel').style.display = 'block';
     document.getElementById('togglePanel').style.display = 'flex';
     
-    // Подготавливаем аудио-контекст
     const silentAudio = new Audio();
     silentAudio.play().catch(()=>{}); 
     speechSynthesis.speak(new SpeechSynthesisUtterance(''));
@@ -172,35 +172,42 @@ function updateInfoUI(point, dist, az, speed) {
         `№${point.id} | ${point.text}<br>Дист: ${dist}м | Цель: ${point.azimuth}° | Курс: ${Math.round(az)}° | ${speed} км/ч`;
 }
 
+function playFallback(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onstart = () => { isSpeaking = true; };
+    utterance.onend = () => { 
+        isSpeaking = false;
+        currentIndex++;
+        rebuildRoute();
+    };
+    speechSynthesis.speak(utterance);
+}
+
 function checkDistance(pos, speed, az){
-    if (currentIndex >= points.length) { document.getElementById('info').textContent = 'Маршрут пройден'; return; }
+    if (currentIndex >= points.length || isSpeaking) return;
+    
     const p = points[currentIndex];
     const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
     
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        let wasPlayed = false;
+        isSpeaking = true; // Блокируем новые срабатывания
         const audio = new Audio(`voice/${p.id}.mp3`);
         
-        audio.play().then(() => {
-            wasPlayed = true; 
-        }).catch(() => {
-            if (!wasPlayed) {
-                wasPlayed = true;
-                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
-            }
-        });
-
-        audio.onerror = () => {
-            if (!wasPlayed) {
-                wasPlayed = true;
-                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
-            }
+        audio.onended = () => {
+            isSpeaking = false;
+            currentIndex++;
+            rebuildRoute();
         };
 
-        currentIndex++;
-        rebuildRoute();
+        audio.onerror = () => {
+            playFallback(p.text);
+        };
+
+        audio.play().catch(() => {
+            playFallback(p.text);
+        });
     }
 }
 
@@ -209,7 +216,7 @@ document.getElementById('jsonFile').onchange = e => {
     const r = new FileReader();
     r.onload = () => {
         try {
-            points = JSON.parse(r.result).map((p, i) => ({
+            points = JSON.parse(r.result).map(p => ({
                 id: p.id, 
                 coords: [parseFloat(p.lat), parseFloat(p.lon)],
                 azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
@@ -251,21 +258,9 @@ function rebuildRoute() {
         d.onclick = () => { 
             currentIndex = i; 
             rebuildRoute(); 
-            if (userPlacemark) {
-                const userPos = userPlacemark.geometry.getCoordinates();
-                const newTarget = points[currentIndex];
-                const dCurrent = Math.round(getDistance(userPos[0], userPos[1], newTarget.coords[0], newTarget.coords[1]));
-                updateInfoUI(newTarget, dCurrent, lastAzimuth, lastSpeed);
-            }
         };
         list.appendChild(d);
     });
-    if (points.length && userPlacemark) {
-        const userPos = userPlacemark.geometry.getCoordinates();
-        const p = points[currentIndex] || points[points.length-1];
-        const dCurrent = Math.round(getDistance(userPos[0], userPos[1], p.coords[0], p.coords[1]));
-        updateInfoUI(p, dCurrent, lastAzimuth, lastSpeed);
-    }
 }
 
 function clearRoute() {
