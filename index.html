@@ -3,260 +3,248 @@
 <head>
 <meta charset="utf-8">
 <title>Навигация</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
 
 <style>
-html, body { margin:0; height:100%; font-family:Arial; }
-#map { width:100%; height:100%; }
-#start{position:absolute;inset:0;z-index:20;background:black;color:white;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer}
-#togglePanelBtn{position:absolute;top:10px;left:10px;z-index:16;width:36px;height:36px;background:white;border:none;border-radius:6px;font-size:20px}
-#panel{position:absolute;top:50px;left:10px;z-index:15;width:300px;max-height:80%;background:rgba(255,255,255,.95);padding:8px;border-radius:6px;display:none;overflow:auto}
-#panel input, #panel select{width:100%;margin-top:4px}
-#panel label{font-size:13px;font-weight:bold}
-#targets div{padding:6px;border-bottom:1px solid #ddd;cursor:pointer}
-#targets div.active{background:#c8f7c5;font-weight:bold}
-#info{position:absolute;bottom:0;left:0;width:100%;background:rgba(255,255,255,.95);padding:8px;font-weight:bold;z-index:15}
-hr{margin:8px 0}
+    body, html { margin: 0; height: 100%; font-family: 'Inter', Arial, sans-serif; overflow: hidden; }
+    #map { position: absolute; inset: 0; }
+    #start {
+        position: absolute; inset: 0; z-index: 2000; background: #000; color: #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer;
+    }
+    #panel { 
+        position: absolute; top: 10px; right: 10px; width: 300px; z-index: 1000;
+        background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2); backdrop-filter: blur(10px);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        display: none;
+    }
+    #panel.collapsed { transform: translateY(-150%); opacity: 0; pointer-events: none; }
+    #togglePanel {
+        position: absolute; bottom: 85px; right: 20px; z-index: 1001;
+        width: 50px; height: 50px; border-radius: 25px; border: none;
+        background: #2f80ed; color: white; font-size: 24px; cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center;
+    }
+    #info {
+        position: absolute; bottom: 0; left: 0; width: 100%;
+        background: rgba(255, 255, 255, 0.95); padding: 12px;
+        font-weight: bold; font-size: 14px; z-index: 15;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1); border-top: 1px solid #ddd;
+        min-height: 40px;
+    }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    button { 
+        flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; 
+        background: #2f80ed; color: white; font-weight: bold; font-family: inherit;
+        min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }
+    button.secondary { background: #6c757d; }
+    #targets { max-height: 200px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
+    #targets div { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
+    #targets div.active { background: #e3f2fd; font-weight: bold; border-left: 3px solid #2f80ed; }
+    .cmd-bubble {
+        position: relative; background: #ffffff; border: 2px solid #333;
+        border-radius: 6px; padding: 4px 8px; font-size: 12px;
+        font-weight: bold; color: #000; box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+        display: inline-block; min-width: 20px; max-width: 200px; 
+        word-wrap: break-word; white-space: normal; line-height: 1.3;
+    }
+    @media (max-width: 480px) { #panel { width: auto; left: 10px; right: 10px; } }
 </style>
 </head>
 
 <body>
 
 <div id="start">Нажмите для запуска</div>
-<button id="togglePanelBtn">☰</button>
+<button id="togglePanel" onclick="togglePanelUI()">≡</button>
 
 <div id="panel">
-<button onclick="document.getElementById('jsonFile').click()">Загрузить JSON</button>
-<input id="jsonFile" type="file" accept=".json" style="display:none">
-
-<label>Выберите маршрут с Gist</label>
-<select id="gistSelect"><option value="">-- Загрузка... --</option></select>
-
-<label>Дистанция триггера (м)</label>
-<input id="distanceTrigger" type="number" value="20">
-
-<button id="toggleAutoCenter">Автоцентр: Вкл</button>
-
-<hr>
-
-<label>Усреднение азимута (точек)</label>
-<input id="azAvgCount" type="number" value="5" min="1" max="20">
-
-<hr>
-<div id="targets"></div>
+    <div class="row">
+        <button onclick="document.getElementById('jsonFile').click()">📂 JSON</button>
+        <button class="secondary" onclick="toggleLabels()" title="Показать/скрыть команды">👁️</button>
+    </div>
+    <input id="jsonFile" type="file" accept=".json" style="display:none">
+    <div style="margin-top:10px;">
+        <label style="font-size:12px; font-weight:bold;">Дистанция триггера (м)</label>
+        <input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px;">
+    </div>
+    <div class="row" style="margin-top:10px;">
+        <button id="toggleAutoCenter" class="secondary" onclick="toggleCenter()">Автоцентр: Вкл</button>
+    </div>
+    <div id="targets"></div>
 </div>
 
 <div id="info">Ожидание GPS…</div>
 <div id="map"></div>
 
 <script>
-/* ==== ПЕРЕМЕННЫЕ ==== */
-let map, userPlacemark, points = [], autoCenter = true, wakeLock = null;
-let azHistory = [], lastAzimuth = 0, lastSpeed = 0, firstFix = true;
+let map, userPlacemark, points = [], autoCenter = true, showLabels = false, wakeLock = null;
+let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
 
-/* ==== Звуки ==== */
-const SOUND_MAP = {
-"На перекрестке повернем направо":"1.wav",
-"Поверните налево":"left.mp3",
-"Двигайтесь прямо":"straight.mp3",
-"Развернитесь":"uturn.mp3",
-"Остановитесь":"stop.mp3"
+document.getElementById('start').onclick = async () => {
+    document.getElementById('start').remove();
+    document.getElementById('panel').style.display = 'block';
+    document.getElementById('togglePanel').style.display = 'flex';
+    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){} }
+    initMap();
 };
-const audio = new Audio(); audio.preload="auto"; let playingNow=false;
 
-function playCommand(text){
-    const file=SOUND_MAP[text];
-    if(file){
-        if(playingNow){audio.pause();audio.currentTime=0;}
-        audio.src=file; playingNow=true; audio.play().catch(()=>{});
-        audio.onended=()=>playingNow=false;
-    }else{
-        const u=new SpeechSynthesisUtterance(text);
-        u.lang="ru-RU"; speechSynthesis.speak(u);
-    }
+function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
+function toggleCenter() {
+    autoCenter = !autoCenter;
+    document.getElementById('toggleAutoCenter').textContent = `Автоцентр: ${autoCenter ? 'Вкл' : 'Выкл'}`;
+}
+function toggleLabels() {
+    showLabels = !showLabels;
+    points.forEach(p => p.placemark.properties.set('iconContent', showLabels ? p.text : ""));
 }
 
-/* ==== DOM ==== */
-const start = document.getElementById('start');
-const panel = document.getElementById('panel');
-const togglePanelBtn = document.getElementById('togglePanelBtn');
-const targets = document.getElementById('targets');
-const info = document.getElementById('info');
-const distanceTrigger = document.getElementById('distanceTrigger');
-const toggleAutoCenter = document.getElementById('toggleAutoCenter');
-const jsonFile = document.getElementById('jsonFile');
-const gistSelect = document.getElementById('gistSelect');
-const azAvgCount = document.getElementById('azAvgCount');
-
-/* ==== START ==== */
-start.onclick = async () => {
-    start.remove();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(''));
-    if ('wakeLock' in navigator) try{wakeLock=await navigator.wakeLock.request('screen')}catch(e){}
-    initMap();
-    loadGistFiles();
-};
-togglePanelBtn.onclick = () => panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-toggleAutoCenter.onclick = () => { autoCenter=!autoCenter; toggleAutoCenter.textContent=`Автоцентр: ${autoCenter?'Вкл':'Выкл'}`; };
-
-/* ==== MAP ==== */
 function initMap(){
     ymaps.ready(()=>{
-        map = new ymaps.Map("map",{center:[0,0],zoom:18,type:'yandex#satellite',controls:[]});
+        map = new ymaps.Map("map", { center:[0,0], zoom:18, type:'yandex#satellite', controls:[] });
         userPlacemark = new ymaps.Placemark([0,0],{},{
             iconLayout:'default#image',
-            iconImageHref: arrowSVG(0,'red'),
+            iconImageHref: getIcon(0, 'red', false, ''),
             iconImageSize:[40,40], iconImageOffset:[-20,-20]
         });
         map.geoObjects.add(userPlacemark);
-        navigator.geolocation.watchPosition(onGPS, console.error, {enableHighAccuracy:true});
+        navigator.geolocation.watchPosition(onGPS, err => console.error(err), {enableHighAccuracy:true, maximumAge:0, timeout:5000});
     });
 }
 
-/* ==== GPS + AZIMUTH ==== */
 function onGPS(p){
-    const c=[p.coords.latitude,p.coords.longitude];
-    const speedKmh = p.coords.speed!=null?p.coords.speed*3.6:0;
+    const c = [p.coords.latitude, p.coords.longitude];
+    const speedKmh = p.coords.speed != null ? p.coords.speed * 3.6 : 0;
     lastSpeed = speedKmh.toFixed(1);
-
-    if(p.coords.heading!==null && !isNaN(p.coords.heading) && speedKmh>=3){
+    if (p.coords.heading !== null && !isNaN(p.coords.heading) && speedKmh >= 3) {
         azHistory.push(p.coords.heading);
-        if(azHistory.length>+azAvgCount.value) azHistory.shift();
+        if (azHistory.length > 3) azHistory.shift();
     }
-
     const avgAz = azHistory.length ? averageAngle(azHistory) : lastAzimuth;
     lastAzimuth = avgAz;
-
     userPlacemark.geometry.setCoordinates(c);
-    userPlacemark.options.set('iconImageHref', arrowSVG(avgAz,'red'));
-
-    if(firstFix){map.setCenter(c,18); firstFix=false;}
-    if(autoCenter) map.setCenter(c);
-
-    checkDistance(c, avgAz);
-    updateInfo();
+    userPlacemark.options.set('iconImageHref', getIcon(avgAz, 'red', false, ''));
+    if (autoCenter) map.setCenter(c);
+    checkDistance(c, lastSpeed, avgAz);
 }
 
-/* ==== CHECK DISTANCE + TRIGGER ==== */
-function checkDistance(pos,az){
-    if(!points.length){ info.textContent='Маршрут пуст'; return; }
-    const p=points[0];
-    const dist=Math.round(getDistance(pos[0],pos[1],p.coords[0],p.coords[1]));
-    const diff=Math.abs(((Math.round(az)-p.azimuth+540)%360)-180);
+function averageAngle(arr){
+    let x=0, y=0;
+    for (const a of arr){
+        const r=a*Math.PI/180;
+        x+=Math.cos(r); y+=Math.sin(r);
+    }
+    return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
 
-    if(dist <= (+distanceTrigger.value||20) && diff <= 45){
-        playCommand(p.text);
+function getIcon(azimuth, colorName, isSelected, id) {
+    const fill = colorName || 'Gold';
+    const stroke = isSelected ? '#2ecc71' : '#000';
+    const innerContent = id ? `
+        <circle cx="20" cy="20" r="9" fill="white" stroke="${fill}" stroke-width="2"/>
+        <text x="20" y="24" font-size="11" font-family="Arial" font-weight="900" text-anchor="middle" fill="black">${id}</text>
+    ` : '';
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+            <g transform="rotate(${azimuth},20,20)">
+                <polygon points="20,2 35,35 20,26 5,35" fill="${fill}" stroke="${stroke}" stroke-width="${isSelected?3:1.5}"/>
+            </g>
+            ${innerContent}
+        </svg>`
+    );
+}
+
+function updateInfoUI(point, dist, az, speed) {
+    document.getElementById('info').innerHTML = 
+        `№${point.id} | ${point.text}<br>Дист: ${dist}м | Цель: ${point.azimuth}° | Курс: ${Math.round(az)}° | ${speed} км/ч`;
+}
+
+function checkDistance(pos, speed, az){
+    if (!points.length) { document.getElementById('info').textContent = 'Маршрут пуст'; return; }
+    const p = points[0];
+    const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
+    const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
+    updateInfoUI(p, dist, az, speed);
+    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
+        speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
         map.geoObjects.remove(p.placemark);
         points.shift();
         rebuildRoute();
     }
 }
 
-/* ==== UPDATE INFO ==== */
-function updateInfo(){
-    if(!points.length){ info.textContent='Маршрут пуст'; return; }
-    const p=points[0];
-    const c = userPlacemark.geometry.getCoordinates();
-    const dist=Math.round(getDistance(c[0],c[1],p.coords[0],p.coords[1]));
-    info.textContent = `№${p.id} | ${p.text} | Д: ${dist}м | Аз:${Math.round(lastAzimuth)}° | Цель:${p.azimuth}° | Скорость:${lastSpeed} км/ч`;
-}
-
-/* ==== JSON / ROUTE ==== */
-jsonFile.onchange = e => {
+document.getElementById('jsonFile').onchange = e => {
+    if (!e.target.files.length) return;
     const r = new FileReader();
     r.onload = () => {
-        points = JSON.parse(r.result).map((p,i)=>({
-            id:i+1,
-            coords:[p.lat,p.lon],
-            azimuth:p.azimuth,
-            text:p.command,
-            color:p.color
-        }));
-        rebuildRoute();
+        try {
+            points = JSON.parse(r.result).map((p, i) => ({
+                id: i + 1, coords: [parseFloat(p.lat), parseFloat(p.lon)],
+                azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
+            }));
+            rebuildRoute();
+            togglePanelUI();
+        } catch(err) { alert("Ошибка JSON"); }
     };
     r.readAsText(e.target.files[0]);
 };
 
-/* ==== DYNAMIC GIST ==== */
-async function loadGistFiles(){
-    const gistId='7d43c5ede26775934e66792a12fe656d';
-    const apiUrl = `https://api.github.com/gists/${gistId}`;
-    try{
-        const res = await fetch(apiUrl);
-        const gist = await res.json();
-        gistSelect.innerHTML = '<option value="">-- Выберите маршрут --</option>';
-        for(let f in gist.files){
-            if(f.toLowerCase().endsWith('.json')){
-                const file = gist.files[f];
-                const opt = document.createElement('option');
-                opt.value = file.raw_url;
-                opt.textContent = f.replace(/\.json$/i,'');
-                gistSelect.appendChild(opt);
-            }
-        }
-    }catch(e){ gistSelect.innerHTML='<option value="">Ошибка загрузки</option>'; console.error(e);}
-}
-
-gistSelect.onchange = async ()=>{
-    const url = gistSelect.value;
-    if(!url) return;
-    try{
-        const r = await fetch(url);
-        const data = await r.json();
-        points = data.map((p,i)=>({id:i+1,coords:[p.lat,p.lon],azimuth:p.azimuth,text:p.command,color:p.color}));
-        rebuildRoute();
-    }catch(e){ alert('Ошибка загрузки маршрута'); console.error(e);}
-};
-
-/* ==== ROUTE ==== */
-function rebuildRoute(){
+function rebuildRoute() {
     clearRoute();
-    targets.innerHTML = '';
-    points.forEach((p,i)=>{
-        const color = p.color || 'blue';
-        const isActive = i===0;
-
-        p.placemark = new ymaps.Placemark(p.coords, {balloonContent:`<b>Цель №${p.id}</b><br>${p.text}`},{
-            iconLayout:'default#image',
-            iconImageHref: arrowSVG(p.azimuth,color,p.id,1,isActive),
-            iconImageSize:[40,40],
-            iconImageOffset:[-20,-20]
-        });
-
-        p.placemark.events.add('click',()=>{ p.placemark.balloon.open(); setTimeout(()=>p.placemark.balloon.close(),2000); });
+    const list = document.getElementById('targets');
+    list.innerHTML = '';
+    points.forEach((p, i) => {
+        const isActive = i === 0;
+        p.placemark = new ymaps.Placemark(p.coords, 
+            { iconContent: showLabels ? p.text : "" },
+            { 
+                iconLayout:'default#imageWithContent',
+                iconImageHref: getIcon(p.azimuth, p.color, isActive, p.id),
+                iconImageSize:[40,40], iconImageOffset:[-20,-20],
+                iconContentOffset: [25, -10],
+                iconContentLayout: ymaps.templateLayoutFactory.createClass(
+                    '{% if properties.iconContent %}<div class="cmd-bubble">$[properties.iconContent]</div>{% endif %}'
+                )
+            }
+        );
         map.geoObjects.add(p.placemark);
-
         const d = document.createElement('div');
         d.textContent = `${p.id}. ${p.text}`;
         if(isActive) d.classList.add('active');
-        d.onclick = ()=>{ points=points.slice(i); rebuildRoute(); };
-        targets.appendChild(d);
+        d.onclick = () => { 
+            points = points.slice(i); 
+            rebuildRoute(); 
+            if (userPlacemark) {
+                const userPos = userPlacemark.geometry.getCoordinates();
+                const newTarget = points[0];
+                const dCurrent = Math.round(getDistance(userPos[0], userPos[1], newTarget.coords[0], newTarget.coords[1]));
+                updateInfoUI(newTarget, dCurrent, lastAzimuth, lastSpeed);
+            }
+        };
+        list.appendChild(d);
     });
-
-    updateInfo();
+    if (points.length && userPlacemark) {
+        const userPos = userPlacemark.geometry.getCoordinates();
+        const dCurrent = Math.round(getDistance(userPos[0], userPos[1], points[0].coords[0], points[0].coords[1]));
+        updateInfoUI(points[0], dCurrent, lastAzimuth, lastSpeed);
+    }
 }
 
-/* ==== CLEAR ==== */
-function clearRoute(){
+function clearRoute() {
     if(!map) return;
-    const objectsToRemove = [];
-    map.geoObjects.each(o=>{ if(o!==userPlacemark) objectsToRemove.push(o); });
-    objectsToRemove.forEach(o=>map.geoObjects.remove(o));
+    const toRemove = [];
+    map.geoObjects.each(o => { if(o !== userPlacemark) toRemove.push(o); });
+    toRemove.forEach(o => map.geoObjects.remove(o));
 }
 
-/* ==== UTILS ==== */
-function averageAngle(arr){ let x=0,y=0; for(const a of arr){ const r=a*Math.PI/180; x+=Math.cos(r); y+=Math.sin(r); } return (Math.atan2(y,x)*180/Math.PI+360)%360; }
-function getDistance(a,b,c,d){ const R=6371000; const dLat=(c-a)*Math.PI/180, dLon=(d-b)*Math.PI/180; const x=Math.sin(dLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)); }
-
-function arrowSVG(a,color,num='',opacity=1,highlight=false){
-    return 'data:image/svg+xml;utf8,'+encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
-<g transform="rotate(${a},20,20)">
-<polygon points="20,2 30,32 20,26 10,32" fill="${color}" fill-opacity="${opacity}" stroke="${highlight?'#7CFC00':'black'}" stroke-width="1"/>
-</g>
-${num?`<text x="20" y="20" font-size="16" fill="white" stroke="black" stroke-width="1" font-family="Arial" text-anchor="middle" dominant-baseline="middle">${num}</text>`:''}
-</svg>`);
+function getDistance(a,b,c,d){
+    const R=6371000;
+    const dLat=(c-a)*Math.PI/180, dLon=(d-b)*Math.PI/180;
+    const x=Math.sin(dLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 </script>
 </body>
