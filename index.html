@@ -83,7 +83,7 @@
 <script>
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null;
 let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
-let isSpeaking = false; // Блокировка переключения, пока идет звук
+let isSpeaking = false; 
 
 document.getElementById('start').onclick = async () => {
     document.getElementById('start').remove();
@@ -172,7 +172,10 @@ function updateInfoUI(point, dist, az, speed) {
         `№${point.id} | ${point.text}<br>Дист: ${dist}м | Цель: ${point.azimuth}° | Курс: ${Math.round(az)}° | ${speed} км/ч`;
 }
 
+// Улучшенная функция синтезатора с защитой от двойного срабатывания
 function playFallback(text) {
+    if (speechSynthesis.speaking) return; // Жёсткая проверка на уровне движка
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.onstart = () => { isSpeaking = true; };
     utterance.onend = () => { 
@@ -192,7 +195,9 @@ function checkDistance(pos, speed, az){
     updateInfoUI(p, dist, az, speed);
     
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        isSpeaking = true; // Блокируем новые срабатывания
+        isSpeaking = true; 
+        let fallbackTriggered = false; // Локальный флаг для этой конкретной попытки
+        
         const audio = new Audio(`voice/${p.id}.mp3`);
         
         audio.onended = () => {
@@ -201,12 +206,18 @@ function checkDistance(pos, speed, az){
             rebuildRoute();
         };
 
-        audio.onerror = () => {
-            playFallback(p.text);
+        const handleError = () => {
+            if (!fallbackTriggered) {
+                fallbackTriggered = true;
+                playFallback(p.text);
+            }
         };
 
-        audio.play().catch(() => {
-            playFallback(p.text);
+        audio.onerror = handleError;
+
+        audio.play().catch((e) => {
+            // В браузерах ошибка "Aborted" или "Not Found" вызывает catch
+            handleError();
         });
     }
 }
@@ -257,6 +268,7 @@ function rebuildRoute() {
         if(isPassed) d.classList.add('passed');
         d.onclick = () => { 
             currentIndex = i; 
+            isSpeaking = false; // Сброс блокировки при ручном переключении
             rebuildRoute(); 
         };
         list.appendChild(d);
