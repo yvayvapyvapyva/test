@@ -83,13 +83,13 @@
 <script>
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null;
 let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
-let isSpeaking = false; 
 
 document.getElementById('start').onclick = async () => {
     document.getElementById('start').remove();
     document.getElementById('panel').style.display = 'block';
     document.getElementById('togglePanel').style.display = 'flex';
     
+    // Подготавливаем аудио-контекст
     const silentAudio = new Audio();
     silentAudio.play().catch(()=>{}); 
     speechSynthesis.speak(new SpeechSynthesisUtterance(''));
@@ -172,48 +172,35 @@ function updateInfoUI(point, dist, az, speed) {
         `№${point.id} | ${point.text}<br>Дист: ${dist}м | Цель: ${point.azimuth}° | Курс: ${Math.round(az)}° | ${speed} км/ч`;
 }
 
-function playFallback(text) {
-    if (speechSynthesis.speaking) return; 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onstart = () => { isSpeaking = true; };
-    utterance.onend = () => { isSpeaking = false; }; // Только сброс флага
-    speechSynthesis.speak(utterance);
-}
-
 function checkDistance(pos, speed, az){
     if (currentIndex >= points.length) { document.getElementById('info').textContent = 'Маршрут пройден'; return; }
-    
     const p = points[currentIndex];
     const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
     
-    // Срабатывание триггера
-    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45 && !isSpeaking) {
+    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
+        let wasPlayed = false;
+        const audio = new Audio(`voice/${p.id}.mp3`);
         
-        const audioId = p.id;
-        const audioText = p.text;
+        audio.play().then(() => {
+            wasPlayed = true; 
+        }).catch(() => {
+            if (!wasPlayed) {
+                wasPlayed = true;
+                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+            }
+        });
 
-        // МГНОВЕННО переключаем индекс и обновляем карту
-        currentIndex++;
-        rebuildRoute();
-
-        // Запускаем звук
-        isSpeaking = true; 
-        let fallbackTriggered = false;
-        const audio = new Audio(`voice/${audioId}.mp3`);
-        
-        audio.onended = () => { isSpeaking = false; };
-        
-        const handleError = () => {
-            if (!fallbackTriggered) {
-                fallbackTriggered = true;
-                playFallback(audioText);
+        audio.onerror = () => {
+            if (!wasPlayed) {
+                wasPlayed = true;
+                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
             }
         };
 
-        audio.onerror = handleError;
-        audio.play().catch(handleError);
+        currentIndex++;
+        rebuildRoute();
     }
 }
 
@@ -222,7 +209,7 @@ document.getElementById('jsonFile').onchange = e => {
     const r = new FileReader();
     r.onload = () => {
         try {
-            points = JSON.parse(r.result).map(p => ({
+            points = JSON.parse(r.result).map((p, i) => ({
                 id: p.id, 
                 coords: [parseFloat(p.lat), parseFloat(p.lon)],
                 azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
@@ -263,11 +250,22 @@ function rebuildRoute() {
         if(isPassed) d.classList.add('passed');
         d.onclick = () => { 
             currentIndex = i; 
-            isSpeaking = false; 
             rebuildRoute(); 
+            if (userPlacemark) {
+                const userPos = userPlacemark.geometry.getCoordinates();
+                const newTarget = points[currentIndex];
+                const dCurrent = Math.round(getDistance(userPos[0], userPos[1], newTarget.coords[0], newTarget.coords[1]));
+                updateInfoUI(newTarget, dCurrent, lastAzimuth, lastSpeed);
+            }
         };
         list.appendChild(d);
     });
+    if (points.length && userPlacemark) {
+        const userPos = userPlacemark.geometry.getCoordinates();
+        const p = points[currentIndex] || points[points.length-1];
+        const dCurrent = Math.round(getDistance(userPos[0], userPos[1], p.coords[0], p.coords[1]));
+        updateInfoUI(p, dCurrent, lastAzimuth, lastSpeed);
+    }
 }
 
 function clearRoute() {
