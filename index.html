@@ -89,7 +89,7 @@ document.getElementById('start').onclick = async () => {
     document.getElementById('panel').style.display = 'block';
     document.getElementById('togglePanel').style.display = 'flex';
     
-    // Активируем аудио-контекст коротким действием для браузеров
+    // Подготавливаем аудио-контекст
     const silentAudio = new Audio();
     silentAudio.play().catch(()=>{}); 
     speechSynthesis.speak(new SpeechSynthesisUtterance(''));
@@ -180,15 +180,21 @@ function checkDistance(pos, speed, az){
     updateInfoUI(p, dist, az, speed);
     
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        // Логика звука: сначала MP3, если нет - синтезатор
+        let wasPlayed = false;
         const audio = new Audio(`voice/${p.id}.mp3`);
         
-        audio.play().catch(() => {
-            speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+        audio.play().then(() => {
+            wasPlayed = true; 
+        }).catch(() => {
+            if (!wasPlayed) {
+                wasPlayed = true;
+                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+            }
         });
 
         audio.onerror = () => {
-            if (!speechSynthesis.speaking) {
+            if (!wasPlayed) {
+                wasPlayed = true;
                 speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
             }
         };
@@ -204,7 +210,7 @@ document.getElementById('jsonFile').onchange = e => {
     r.onload = () => {
         try {
             points = JSON.parse(r.result).map((p, i) => ({
-                id: p.id, // Используем id из JSON как число
+                id: p.id, 
                 coords: [parseFloat(p.lat), parseFloat(p.lon)],
                 azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
             }));
