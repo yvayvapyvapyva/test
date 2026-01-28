@@ -49,7 +49,7 @@
 
 <script>
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
-let audioCache = {}; // Хранилище Blob-ссылок для аудио
+let audioCache = {}; 
 
 document.getElementById('start').onclick = async function() {
     this.remove(); document.getElementById('panel').style.display = 'block'; document.getElementById('togglePanel').style.display = 'flex';
@@ -76,8 +76,9 @@ async function loadRoadFromServer(file) {
     try {
         currentRoadFolder = 'roads/' + file.replace('.json', '');
         const res = await fetch('roads/' + file);
+        if(!res.ok) throw new Error();
         processJSON(await res.json());
-    } catch(e) { alert("Ошибка загрузки файла"); }
+    } catch(e) { console.warn("Ошибка загрузки JSON маршрута"); }
 }
 
 function loadLocalJSON(e) {
@@ -85,7 +86,7 @@ function loadLocalJSON(e) {
     const file = e.target.files[0];
     currentRoadFolder = 'roads/' + file.name.replace('.json', '');
     const r = new FileReader();
-    r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { alert("Ошибка JSON"); } };
+    r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { console.warn("Ошибка JSON"); } };
     r.readAsText(file);
 }
 
@@ -101,7 +102,6 @@ async function preloadAudio() {
     const container = document.getElementById('audioProgress');
     if (!points.length) return;
 
-    // Очищаем старый кэш
     Object.values(audioCache).forEach(url => URL.revokeObjectURL(url));
     audioCache = {};
     
@@ -116,13 +116,11 @@ async function preloadAudio() {
                 const blob = await response.blob();
                 audioCache[p.id] = URL.createObjectURL(blob);
             }
-        } catch (e) {
-            console.warn(`Файл ${p.id}.mp3 не загружен`);
-        }
+        } catch (e) { } 
         loaded++;
         bar.style.width = (loaded / points.length * 100) + '%';
     }
-    setTimeout(() => container.style.display = 'none', 1000);
+    setTimeout(() => container.style.display = 'none', 800);
 }
 
 function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
@@ -175,12 +173,11 @@ function checkDistance(pos, speed, az){
         let played = false;
         const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
         
-        // Проверяем наличие закэшированной Blob-ссылки
         if (audioCache[p.id]) {
             const audio = new Audio(audioCache[p.id]);
             audio.play().then(() => played = true).catch(say);
         } else {
-            say(); // Если файла в кэше нет, сразу синтезатор
+            say(); 
         }
         
         currentIndex++; 
@@ -213,7 +210,7 @@ function rebuildRoute() {
 
 function getDistance(a,b,c,d){
     const R=6371000, rLat=(c-a)*Math.PI/180, rLon=(d-b)*Math.PI/180;
-    const x=Math.sin(rLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Ph.sin(rLon/2)**2;
+    const x=Math.sin(rLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(rLon/2)**2;
     return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 </script>
