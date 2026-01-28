@@ -44,6 +44,7 @@
     #targets { max-height: 200px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
     #targets div { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
     #targets div.active { background: #e3f2fd; font-weight: bold; border-left: 3px solid #2f80ed; }
+    #targets div.passed { color: #999; text-decoration: line-through; }
     .cmd-bubble {
         position: relative; background: #ffffff; border: 2px solid #333;
         border-radius: 6px; padding: 4px 8px; font-size: 12px;
@@ -80,7 +81,7 @@
 <div id="map"></div>
 
 <script>
-let map, userPlacemark, points = [], autoCenter = true, showLabels = false, wakeLock = null;
+let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null;
 let azHistory = [], lastAzimuth = 0, lastSpeed = 0;
 
 document.getElementById('start').onclick = async () => {
@@ -99,7 +100,10 @@ function toggleCenter() {
 }
 function toggleLabels() {
     showLabels = !showLabels;
-    points.forEach(p => p.placemark.properties.set('iconContent', showLabels ? p.text : ""));
+    points.forEach((p, i) => {
+        const isPassed = i < currentIndex;
+        p.placemark.properties.set('iconContent', (showLabels && !isPassed) ? p.text : "");
+    });
 }
 
 function initMap(){
@@ -107,7 +111,7 @@ function initMap(){
         map = new ymaps.Map("map", { center:[0,0], zoom:18, type:'yandex#satellite', controls:[] });
         userPlacemark = new ymaps.Placemark([0,0],{},{
             iconLayout:'default#image',
-            iconImageHref: getIcon(0, 'red', false, ''),
+            iconImageHref: getIcon(0, 'red', false, '', 1),
             iconImageSize:[40,40], iconImageOffset:[-20,-20]
         });
         map.geoObjects.add(userPlacemark);
@@ -126,7 +130,7 @@ function onGPS(p){
     const avgAz = azHistory.length ? averageAngle(azHistory) : lastAzimuth;
     lastAzimuth = avgAz;
     userPlacemark.geometry.setCoordinates(c);
-    userPlacemark.options.set('iconImageHref', getIcon(avgAz, 'red', false, ''));
+    userPlacemark.options.set('iconImageHref', getIcon(avgAz, 'red', false, '', 1));
     if (autoCenter) map.setCenter(c);
     checkDistance(c, lastSpeed, avgAz);
 }
@@ -140,16 +144,16 @@ function averageAngle(arr){
     return (Math.atan2(y,x)*180/Math.PI+360)%360;
 }
 
-function getIcon(azimuth, colorName, isSelected, id) {
+function getIcon(azimuth, colorName, isSelected, id, opacity = 1) {
     const fill = colorName || 'Gold';
     const stroke = isSelected ? '#2ecc71' : '#000';
     const innerContent = id ? `
-        <circle cx="20" cy="20" r="9" fill="white" stroke="${fill}" stroke-width="2"/>
-        <text x="20" y="24" font-size="11" font-family="Arial" font-weight="900" text-anchor="middle" fill="black">${id}</text>
+        <circle cx="20" cy="20" r="9" fill="white" fill-opacity="${opacity}" stroke="${fill}" stroke-opacity="${opacity}" stroke-width="2"/>
+        <text x="20" y="24" font-size="11" font-family="Arial" font-weight="900" text-anchor="middle" fill="black" fill-opacity="${opacity}">${id}</text>
     ` : '';
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(
         `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">
-            <g transform="rotate(${azimuth},20,20)">
+            <g transform="rotate(${azimuth},20,20)" opacity="${opacity}">
                 <polygon points="20,2 35,35 20,26 5,35" fill="${fill}" stroke="${stroke}" stroke-width="${isSelected?3:1.5}"/>
             </g>
             ${innerContent}
@@ -158,20 +162,20 @@ function getIcon(azimuth, colorName, isSelected, id) {
 }
 
 function updateInfoUI(point, dist, az, speed) {
+    if(!point) { document.getElementById('info').textContent = 'Маршрут пройден'; return; }
     document.getElementById('info').innerHTML = 
         `№${point.id} | ${point.text}<br>Дист: ${dist}м | Цель: ${point.azimuth}° | Курс: ${Math.round(az)}° | ${speed} км/ч`;
 }
 
 function checkDistance(pos, speed, az){
-    if (!points.length) { document.getElementById('info').textContent = 'Маршрут пуст'; return; }
-    const p = points[0];
+    if (currentIndex >= points.length) { document.getElementById('info').textContent = 'Маршрут пройден'; return; }
+    const p = points[currentIndex];
     const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
         speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
-        map.geoObjects.remove(p.placemark);
-        points.shift();
+        currentIndex++;
         rebuildRoute();
     }
 }
@@ -185,6 +189,7 @@ document.getElementById('jsonFile').onchange = e => {
                 id: i + 1, coords: [parseFloat(p.lat), parseFloat(p.lon)],
                 azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
             }));
+            currentIndex = 0;
             rebuildRoute();
             togglePanelUI();
         } catch(err) { alert("Ошибка JSON"); }
@@ -197,12 +202,15 @@ function rebuildRoute() {
     const list = document.getElementById('targets');
     list.innerHTML = '';
     points.forEach((p, i) => {
-        const isActive = i === 0;
+        const isActive = i === currentIndex;
+        const isPassed = i < currentIndex;
+        const opacity = isPassed ? 0.30 : 1; // Установлено на 30%
+
         p.placemark = new ymaps.Placemark(p.coords, 
-            { iconContent: showLabels ? p.text : "" },
+            { iconContent: (showLabels && !isPassed) ? p.text : "" },
             { 
                 iconLayout:'default#imageWithContent',
-                iconImageHref: getIcon(p.azimuth, p.color, isActive, p.id),
+                iconImageHref: getIcon(p.azimuth, p.color, isActive, p.id, opacity),
                 iconImageSize:[40,40], iconImageOffset:[-20,-20],
                 iconContentOffset: [25, -10],
                 iconContentLayout: ymaps.templateLayoutFactory.createClass(
@@ -214,12 +222,13 @@ function rebuildRoute() {
         const d = document.createElement('div');
         d.textContent = `${p.id}. ${p.text}`;
         if(isActive) d.classList.add('active');
+        if(isPassed) d.classList.add('passed');
         d.onclick = () => { 
-            points = points.slice(i); 
+            currentIndex = i; 
             rebuildRoute(); 
             if (userPlacemark) {
                 const userPos = userPlacemark.geometry.getCoordinates();
-                const newTarget = points[0];
+                const newTarget = points[currentIndex];
                 const dCurrent = Math.round(getDistance(userPos[0], userPos[1], newTarget.coords[0], newTarget.coords[1]));
                 updateInfoUI(newTarget, dCurrent, lastAzimuth, lastSpeed);
             }
@@ -228,8 +237,9 @@ function rebuildRoute() {
     });
     if (points.length && userPlacemark) {
         const userPos = userPlacemark.geometry.getCoordinates();
-        const dCurrent = Math.round(getDistance(userPos[0], userPos[1], points[0].coords[0], points[0].coords[1]));
-        updateInfoUI(points[0], dCurrent, lastAzimuth, lastSpeed);
+        const p = points[currentIndex] || points[points.length-1];
+        const dCurrent = Math.round(getDistance(userPos[0], userPos[1], p.coords[0], p.coords[1]));
+        updateInfoUI(p, dCurrent, lastAzimuth, lastSpeed);
     }
 }
 
