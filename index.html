@@ -172,53 +172,48 @@ function updateInfoUI(point, dist, az, speed) {
         `№${point.id} | ${point.text}<br>Дист: ${dist}м | Цель: ${point.azimuth}° | Курс: ${Math.round(az)}° | ${speed} км/ч`;
 }
 
-// Улучшенная функция синтезатора с защитой от двойного срабатывания
 function playFallback(text) {
-    if (speechSynthesis.speaking) return; // Жёсткая проверка на уровне движка
-    
+    if (speechSynthesis.speaking) return; 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.onstart = () => { isSpeaking = true; };
-    utterance.onend = () => { 
-        isSpeaking = false;
-        currentIndex++;
-        rebuildRoute();
-    };
+    utterance.onend = () => { isSpeaking = false; }; // Только сброс флага
     speechSynthesis.speak(utterance);
 }
 
 function checkDistance(pos, speed, az){
-    if (currentIndex >= points.length || isSpeaking) return;
+    if (currentIndex >= points.length) { document.getElementById('info').textContent = 'Маршрут пройден'; return; }
     
     const p = points[currentIndex];
     const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
     
-    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        isSpeaking = true; 
-        let fallbackTriggered = false; // Локальный флаг для этой конкретной попытки
+    // Срабатывание триггера
+    if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45 && !isSpeaking) {
         
-        const audio = new Audio(`voice/${p.id}.mp3`);
-        
-        audio.onended = () => {
-            isSpeaking = false;
-            currentIndex++;
-            rebuildRoute();
-        };
+        const audioId = p.id;
+        const audioText = p.text;
 
+        // МГНОВЕННО переключаем индекс и обновляем карту
+        currentIndex++;
+        rebuildRoute();
+
+        // Запускаем звук
+        isSpeaking = true; 
+        let fallbackTriggered = false;
+        const audio = new Audio(`voice/${audioId}.mp3`);
+        
+        audio.onended = () => { isSpeaking = false; };
+        
         const handleError = () => {
             if (!fallbackTriggered) {
                 fallbackTriggered = true;
-                playFallback(p.text);
+                playFallback(audioText);
             }
         };
 
         audio.onerror = handleError;
-
-        audio.play().catch((e) => {
-            // В браузерах ошибка "Aborted" или "Not Found" вызывает catch
-            handleError();
-        });
+        audio.play().catch(handleError);
     }
 }
 
@@ -268,7 +263,7 @@ function rebuildRoute() {
         if(isPassed) d.classList.add('passed');
         d.onclick = () => { 
             currentIndex = i; 
-            isSpeaking = false; // Сброс блокировки при ручном переключении
+            isSpeaking = false; 
             rebuildRoute(); 
         };
         list.appendChild(d);
