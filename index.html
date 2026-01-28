@@ -88,7 +88,12 @@ document.getElementById('start').onclick = async () => {
     document.getElementById('start').remove();
     document.getElementById('panel').style.display = 'block';
     document.getElementById('togglePanel').style.display = 'flex';
+    
+    // Активируем аудио-контекст коротким действием для браузеров
+    const silentAudio = new Audio();
+    silentAudio.play().catch(()=>{}); 
     speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+
     if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){} }
     initMap();
 };
@@ -173,8 +178,21 @@ function checkDistance(pos, speed, az){
     const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
+    
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+        // Логика звука: сначала MP3, если нет - синтезатор
+        const audio = new Audio(`voice/${p.id}.mp3`);
+        
+        audio.play().catch(() => {
+            speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+        });
+
+        audio.onerror = () => {
+            if (!speechSynthesis.speaking) {
+                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+            }
+        };
+
         currentIndex++;
         rebuildRoute();
     }
@@ -186,7 +204,8 @@ document.getElementById('jsonFile').onchange = e => {
     r.onload = () => {
         try {
             points = JSON.parse(r.result).map((p, i) => ({
-                id: i + 1, coords: [parseFloat(p.lat), parseFloat(p.lon)],
+                id: p.id, // Используем id из JSON как число
+                coords: [parseFloat(p.lat), parseFloat(p.lon)],
                 azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold'
             }));
             currentIndex = 0;
@@ -204,7 +223,7 @@ function rebuildRoute() {
     points.forEach((p, i) => {
         const isActive = i === currentIndex;
         const isPassed = i < currentIndex;
-        const opacity = isPassed ? 0.30 : 1; // Установлено на 30%
+        const opacity = isPassed ? 0.30 : 1;
 
         p.placemark = new ymaps.Placemark(p.coords, 
             { iconContent: (showLabels && !isPassed) ? p.text : "" },
