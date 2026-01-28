@@ -22,7 +22,6 @@
     #targets div.active { background: #e3f2fd; font-weight: bold; border-left: 3px solid #2f80ed; }
     #targets div.passed { color: #999; text-decoration: line-through; }
     .cmd-bubble { position: relative; background: #fff; border: 2px solid #333; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: bold; color: #000; box-shadow: 2px 2px 6px rgba(0,0,0,0.3); display: inline-block; max-width: 200px; word-wrap: break-word; }
-    /* Стиль для прогресс-бара */
     #audioProgress { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; display: none; overflow: hidden; }
     #audioProgressBar { height: 100%; background: #27ae60; width: 0%; transition: width 0.3s; }
     @media (max-width: 480px) { #panel { width: auto; left: 10px; right: 10px; } }
@@ -40,9 +39,7 @@
         <button class="secondary" onclick="toggleLabels()">👁️</button>
     </div>
     <input id="jsonFile" type="file" accept=".json" style="display:none" onchange="loadLocalJSON(event)">
-    
     <div id="audioProgress"><div id="audioProgressBar"></div></div>
-
     <div style="margin-top:10px;"><label style="font-size:12px; font-weight:bold;">Триггер (м)</label><input id="distanceTrigger" type="number" value="20" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd; margin-top:4px; box-sizing: border-box;"></div>
     <div class="row" style="margin-top:10px;"><button id="toggleAutoCenter" class="secondary" onclick="toggleCenter()">Автоцентр: Вкл</button></div>
     <div id="targets"></div>
@@ -52,6 +49,7 @@
 
 <script>
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
+let audioCache = {}; // Хранилище Blob-ссылок для аудио
 
 document.getElementById('start').onclick = async function() {
     this.remove(); document.getElementById('panel').style.display = 'block'; document.getElementById('togglePanel').style.display = 'flex';
@@ -93,31 +91,38 @@ function loadLocalJSON(e) {
 
 function processJSON(data) {
     points = data.map(p => ({ id: p.id, coords: [+p.lat, +p.lon], azimuth: p.azimuth, text: p.command || '', color: p.color || 'Gold' }));
-    currentIndex = 0; rebuildRoute();
+    currentIndex = 0; 
+    rebuildRoute();
     preloadAudio();
 }
 
-function preloadAudio() {
+async function preloadAudio() {
     const bar = document.getElementById('audioProgressBar');
     const container = document.getElementById('audioProgress');
     if (!points.length) return;
+
+    // Очищаем старый кэш
+    Object.values(audioCache).forEach(url => URL.revokeObjectURL(url));
+    audioCache = {};
     
     container.style.display = 'block';
     bar.style.width = '0%';
     let loaded = 0;
 
-    points.forEach(p => {
-        const audio = new Audio();
-        const update = () => {
-            loaded++;
-            bar.style.width = (loaded / points.length * 100) + '%';
-            if (loaded >= points.length) setTimeout(() => container.style.display = 'none', 1000);
-        };
-        audio.addEventListener('canplaythrough', update, { once: true });
-        audio.addEventListener('error', update, { once: true }); // Игнорируем ошибки (если файла нет)
-        audio.src = `${currentRoadFolder}/${p.id}.mp3`;
-        audio.load();
-    });
+    for (const p of points) {
+        try {
+            const response = await fetch(`${currentRoadFolder}/${p.id}.mp3`);
+            if (response.ok) {
+                const blob = await response.blob();
+                audioCache[p.id] = URL.createObjectURL(blob);
+            }
+        } catch (e) {
+            console.warn(`Файл ${p.id}.mp3 не загружен`);
+        }
+        loaded++;
+        bar.style.width = (loaded / points.length * 100) + '%';
+    }
+    setTimeout(() => container.style.display = 'none', 1000);
 }
 
 function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
@@ -165,11 +170,21 @@ function checkDistance(pos, speed, az){
     const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
+
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        let played = false; const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
-        const audio = new Audio(`${currentRoadFolder}/${p.id}.mp3`);
-        audio.play().then(()=>played=true).catch(say); audio.onerror = say;
-        currentIndex++; rebuildRoute();
+        let played = false;
+        const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
+        
+        // Проверяем наличие закэшированной Blob-ссылки
+        if (audioCache[p.id]) {
+            const audio = new Audio(audioCache[p.id]);
+            audio.play().then(() => played = true).catch(say);
+        } else {
+            say(); // Если файла в кэше нет, сразу синтезатор
+        }
+        
+        currentIndex++; 
+        rebuildRoute();
     }
 }
 
@@ -198,7 +213,7 @@ function rebuildRoute() {
 
 function getDistance(a,b,c,d){
     const R=6371000, rLat=(c-a)*Math.PI/180, rLon=(d-b)*Math.PI/180;
-    const x=Math.sin(rLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(rLon/2)**2;
+    const x=Math.sin(rLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Ph.sin(rLon/2)**2;
     return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 </script>
