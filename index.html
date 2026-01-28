@@ -14,7 +14,7 @@
     #togglePanel { position: absolute; bottom: 85px; right: 20px; z-index: 1001; width: 50px; height: 50px; border-radius: 25px; border: none; background: #2f80ed; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; }
     #info { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); padding: 12px; font-weight: bold; font-size: 14px; z-index: 15; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); border-top: 1px solid #ddd; min-height: 40px; box-sizing: border-box; }
     .row { display: flex; gap: 8px; margin-bottom: 8px; }
-    button, select { flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; background: #2f80ed; color: white; font-weight: bold; min-height: 44px; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+    button, select { flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; background: #2f80ed; color: white; font-weight: bold; min-height: 44px; display: flex; align-items: center; justify-content: center; font-family: inherit; font-size: 14px; }
     select { background: #fff; color: #000; border: 1px solid #ddd; display: block; width: 100%; }
     button.secondary { background: #6c757d; }
     #targets { max-height: 200px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
@@ -45,7 +45,7 @@
 <div id="map"></div>
 
 <script>
-let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0;
+let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
 
 document.getElementById('start').onclick = async function() {
     this.remove(); document.getElementById('panel').style.display = 'block'; document.getElementById('togglePanel').style.display = 'flex';
@@ -70,6 +70,7 @@ async function loadRoadList() {
 async function loadRoadFromServer(file) {
     if (!file) return;
     try {
+        currentRoadFolder = 'roads/' + file.replace('.json', '');
         const res = await fetch('roads/' + file);
         processJSON(await res.json());
     } catch(e) { alert("Ошибка загрузки файла"); }
@@ -77,9 +78,11 @@ async function loadRoadFromServer(file) {
 
 function loadLocalJSON(e) {
     if (!e.target.files.length) return;
+    const file = e.target.files[0];
+    currentRoadFolder = 'roads/' + file.name.replace('.json', '');
     const r = new FileReader();
     r.onload = () => { try { processJSON(JSON.parse(r.result)); } catch(e) { alert("Ошибка JSON"); } };
-    r.readAsText(e.target.files[0]);
+    r.readAsText(file);
 }
 
 function processJSON(data) {
@@ -134,7 +137,7 @@ function checkDistance(pos, speed, az){
     updateInfoUI(p, dist, az, speed);
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
         let played = false; const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
-        const audio = new Audio(`voice/${p.id}.mp3`);
+        const audio = new Audio(`${currentRoadFolder}/${p.id}.mp3`);
         audio.play().then(()=>played=true).catch(say); audio.onerror = say;
         currentIndex++; rebuildRoute();
     }
