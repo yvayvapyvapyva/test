@@ -151,7 +151,7 @@ function rebuildRoute() {
     points.forEach((p, i) => {
         const active = i === currentIndex, passed = i < currentIndex, op = passed ? 0.3 : 1;
         p.placemark = new ymaps.Placemark(p.coords, { iconContent: (showLabels && !passed) ? p.text : "" }, { 
-            iconLayout:'default#imageWithContent', iconImageHref: getIcon(p.azimuth, p.color, active, p.id, op), iconImageSize:[40,40], iconImageOffset:[-20,-20], iconContentOffset: [25, -10],
+            iconLayout:'default#imageWithContent', iconImageHref: getIcon(p.azimuth, p.color, active, p.id, op), iconImageSize:[40,40], iconImageOffset:[-20,-20], iconContentOffset: [40, -10],
             iconContentLayout: ymaps.templateLayoutFactory.createClass('{% if properties.iconContent %}<div class="cmd-bubble">$[properties.iconContent]</div>{% endif %}')
         });
         map.geoObjects.add(p.placemark);
