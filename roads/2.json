@@ -22,5 +22,13 @@
     "azimuth": 0,
     "color": "Gold",
     "command": "Повернем направо"
+  },
+  {
+    "id": 4,
+    "lat": "56.242154",
+    "lon": "43.974775",
+    "azimuth": 350,
+    "color": "blue",
+    "command": "Четвертая"
   }
 ]
