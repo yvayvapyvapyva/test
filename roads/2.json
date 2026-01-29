@@ -27,9 +27,9 @@
     "id": 4,
     "lat": "56.242418",
     "lon": "43.971285",
-    "azimuth": 230,
-    "color": "red",
-    "command": "Четвертая тест красная"
+    "azimuth": 0,
+    "color": "purple",
+    "command": "Четвертая тест краснаяuuu"
   },
   {
     "id": 5,
