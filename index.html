@@ -65,7 +65,6 @@
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
 let audioCache = {}, audioStatus = {}; 
 
-// Вспомогательная функция против кеширования
 function getNoCacheUrl(url) {
     const timestamp = new Date().getTime();
     const separator = url.includes('?') ? '&' : '?';
@@ -149,7 +148,6 @@ async function preloadAudio() {
         } 
         loaded++;
         bar.style.width = (loaded / points.length * 100) + '%';
-        // Обновляем список каждые несколько файлов или в конце
         if (loaded % 3 === 0 || loaded === points.length) rebuildRoute();
     }
     setTimeout(() => container.style.display = 'none', 800);
@@ -209,16 +207,34 @@ function updateInfoUI(p, d, az, s) {
 
 function checkDistance(pos, speed, az){
     if (currentIndex >= points.length) return;
-    const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
+    const p = points[currentIndex];
+    const dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
+    
     updateInfoUI(p, dist, az, speed);
+
+    // Условие срабатывания по дистанции и направлению
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        let played = false;
-        const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
+        
+        // Очищаем текущую очередь синтезатора, чтобы не частил
+        speechSynthesis.cancel();
+
         if (audioCache[p.id]) {
+            // Если MP3 найден в кеше - воспроизводим ТОЛЬКО его
             const audio = new Audio(audioCache[p.id]);
-            audio.play().then(() => played = true).catch(say);
-        } else { say(); }
+            audio.play().catch(e => {
+                // Фоллбек на синтезатор только если файл физически не смог открыться
+                console.warn("Ошибка проигрывания файла, используем синтез", e);
+                speechSynthesis.speak(new SpeechSynthesisUtterance(p.text));
+            });
+        } else {
+            // Если файла нет в кеше - используем синтезатор речи
+            if (p.text) {
+                const utterance = new SpeechSynthesisUtterance(p.text);
+                speechSynthesis.speak(utterance);
+            }
+        }
+
         currentIndex++; 
         rebuildRoute();
     }
@@ -238,13 +254,12 @@ function rebuildRoute() {
         });
         map.geoObjects.add(p.placemark);
 
-        // Формирование элемента списка
         const d = document.createElement('div');
         let iconHtml = '<i class="audio-icon" style="color:#ccc">⏳</i>';
         if (audioStatus[p.id] === true) {
-            iconHtml = `<i class="audio-icon" onclick="event.stopPropagation(); playAudio('${p.id}')" title="Прослушать">🔊</i>`;
+            iconHtml = `<i class="audio-icon" onclick="event.stopPropagation(); playAudio('${p.id}')" title="Прослушать MP3">🔊</i>`;
         } else if (audioStatus[p.id] === false) {
-            iconHtml = '<i class="audio-icon" title="Файл не найден">🔇</i>';
+            iconHtml = '<i class="audio-icon" title="Синтез речи (TTS)">🤖</i>';
         }
         
         d.innerHTML = `${iconHtml} <span>${p.id}. ${p.text}</span>`;
