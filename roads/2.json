@@ -22,5 +22,13 @@
     "azimuth": 0,
     "color": "Fuchsia",
     "command": ""
+  },
+  {
+    "id": 4,
+    "lat": "56.242418",
+    "lon": "43.971285",
+    "azimuth": 270,
+    "color": "Aqua",
+    "command": "ohuhhhllj"
   }
 ]
