@@ -1,6 +1,5 @@
 [
   {
-    "id": 1,
     "lat": "56.241631",
     "lon": "43.975090",
     "azimuth": 0,
@@ -8,7 +7,6 @@
     "command": ""
   },
   {
-    "id": 2,
     "lat": "56.242444",
     "lon": "43.973862",
     "azimuth": 80,
@@ -16,7 +14,6 @@
     "command": ""
   },
   {
-    "id": 3,
     "lat": "56.242118",
     "lon": "43.975903",
     "azimuth": 0,
@@ -24,7 +21,6 @@
     "command": ""
   },
   {
-    "id": 4,
     "lat": "56.242418",
     "lon": "43.971285",
     "azimuth": 270,
@@ -32,11 +28,17 @@
     "command": "jkbkbbkbb"
   },
   {
-    "id": 5,
     "lat": "56.242428",
     "lon": "43.972183",
     "azimuth": 0,
     "color": "Gold",
     "command": "jkkjbjb"
+  },
+  {
+    "lat": "56.242131",
+    "lon": "43.972167",
+    "azimuth": 30,
+    "color": "purple",
+    "command": "шестая"
   }
 ]
