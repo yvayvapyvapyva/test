@@ -12,7 +12,6 @@
     #panel { position: absolute; top: 10px; right: 10px; width: 300px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); backdrop-filter: blur(10px); transition: 0.3s; display: none; }
     #panel.collapsed { transform: translateY(-150%); opacity: 0; pointer-events: none; }
     
-    /* Кнопки управления в основном окне */
     #togglePanel, #toggleLabelsBtn { position: absolute; right: 20px; z-index: 1001; width: 50px; height: 50px; border-radius: 25px; border: none; background: #2f80ed; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; transition: background 0.2s; }
     #togglePanel { bottom: 85px; }
     #toggleLabelsBtn { bottom: 145px; font-size: 20px; }
@@ -59,6 +58,12 @@
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
 let audioCache = {}; 
 
+// Хелпер для создания URL с анти-кэшем
+function getNoCacheUrl(url) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}t=${new Date().getTime()}`;
+}
+
 document.getElementById('start').onclick = async function() {
     this.remove(); 
     document.getElementById('panel').style.display = 'block'; 
@@ -71,9 +76,10 @@ document.getElementById('start').onclick = async function() {
 
 async function loadRoadList() {
     try {
-        const res = await fetch('roads/list.json');
+        const res = await fetch(getNoCacheUrl('roads/list.json'));
         const list = await res.json();
         const sel = document.getElementById('roadSelect');
+        sel.innerHTML = '<option value="">-- Выберите маршрут --</option>'; // Очистка
         list.forEach(r => {
             const opt = document.createElement('option');
             opt.value = r.file; opt.textContent = r.name || r.file;
@@ -86,7 +92,7 @@ async function loadRoadFromServer(file) {
     if (!file) return;
     try {
         currentRoadFolder = 'roads/' + file.replace('.json', '');
-        const res = await fetch('roads/' + file);
+        const res = await fetch(getNoCacheUrl('roads/' + file));
         if(!res.ok) throw new Error();
         processJSON(await res.json());
     } catch(e) { console.warn("Ошибка загрузки JSON маршрута"); }
@@ -119,7 +125,8 @@ async function preloadAudio() {
     let loaded = 0;
     for (const p of points) {
         try {
-            const response = await fetch(`${currentRoadFolder}/${p.id}.mp3`);
+            const url = getNoCacheUrl(`${currentRoadFolder}/${p.id}.mp3`);
+            const response = await fetch(url);
             if (response.ok) {
                 const blob = await response.blob();
                 audioCache[p.id] = URL.createObjectURL(blob);
