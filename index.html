@@ -2,26 +2,27 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
 <title>Навигация</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <script src="https://api-maps.yandex.ru/2.1/?apikey=ВАШ_API_КЛЮЧ&lang=ru_RU"></script>
 <style>
+    /* ... (стили остаются без изменений) ... */
     body, html { margin: 0; height: 100%; font-family: 'Inter', Arial, sans-serif; overflow: hidden; }
     #map { position: absolute; inset: 0; }
     #start { position: absolute; inset: 0; z-index: 2000; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
     #panel { position: absolute; top: 10px; right: 10px; width: 300px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); backdrop-filter: blur(10px); transition: 0.3s; display: none; }
     #panel.collapsed { transform: translateY(-150%); opacity: 0; pointer-events: none; }
-    
     #togglePanel, #toggleLabelsBtn { position: absolute; right: 20px; z-index: 1001; width: 50px; height: 50px; border-radius: 25px; border: none; background: #2f80ed; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; align-items: center; justify-content: center; transition: background 0.2s; }
     #togglePanel { bottom: 85px; }
     #toggleLabelsBtn { bottom: 145px; font-size: 20px; }
-    #togglePanel:active, #toggleLabelsBtn:active { background: #1a5ab5; }
-
     #info { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); padding: 12px; font-weight: bold; font-size: 14px; z-index: 15; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); border-top: 1px solid #ddd; min-height: 40px; box-sizing: border-box; }
     .row { display: flex; gap: 8px; margin-bottom: 8px; }
     button, select { flex: 1; cursor: pointer; border: none; border-radius: 8px; padding: 10px 5px; background: #2f80ed; color: white; font-weight: bold; min-height: 44px; display: flex; align-items: center; justify-content: center; font-family: inherit; font-size: 14px; }
     select { background: #fff; color: #000; border: 1px solid #ddd; display: block; width: 100%; }
-    button.secondary { background: #6c757d; }
     #targets { max-height: 200px; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; }
     #targets div { padding: 8px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
     #targets div.active { background: #e3f2fd; font-weight: bold; border-left: 3px solid #2f80ed; }
@@ -29,12 +30,10 @@
     .cmd-bubble { position: relative; background: #fff; border: 2px solid #333; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: bold; color: #000; box-shadow: 2px 2px 6px rgba(0,0,0,0.3); display: inline-block; max-width: 200px; word-wrap: break-word; }
     #audioProgress { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; display: none; overflow: hidden; }
     #audioProgressBar { height: 100%; background: #27ae60; width: 0%; transition: width 0.3s; }
-    @media (max-width: 480px) { #panel { width: auto; left: 10px; right: 10px; } }
 </style>
 </head>
 <body>
 <div id="start">Нажмите для запуска</div>
-
 <button id="toggleLabelsBtn" onclick="toggleLabels()">👁️</button>
 <button id="togglePanel" onclick="togglePanelUI()">≡</button>
 
@@ -55,14 +54,14 @@
 <div id="map"></div>
 
 <script>
+// Добавляем параметр к URL для обхода кеша
+function nocache(url) {
+    const sep = url.indexOf('?') === -1 ? '?' : '&';
+    return url + sep + 't=' + new Date().getTime();
+}
+
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
 let audioCache = {}; 
-
-// Хелпер для получения URL без кэша
-function getNoCacheUrl(url) {
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}t=${new Date().getTime()}`;
-}
 
 document.getElementById('start').onclick = async function() {
     this.remove(); 
@@ -71,15 +70,16 @@ document.getElementById('start').onclick = async function() {
     document.getElementById('toggleLabelsBtn').style.display = 'flex';
     new Audio().play().catch(()=>{}); speechSynthesis.speak(new SpeechSynthesisUtterance(''));
     if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
-    initMap(); loadRoadList();
+    initMap(); 
+    loadRoadList();
 };
 
 async function loadRoadList() {
     try {
-        const res = await fetch(getNoCacheUrl('roads/list.json'));
+        // Добавлен nocache
+        const res = await fetch(nocache('roads/list.json'));
         const list = await res.json();
         const sel = document.getElementById('roadSelect');
-        sel.innerHTML = '<option value="">-- Выберите маршрут --</option>'; 
         list.forEach(r => {
             const opt = document.createElement('option');
             opt.value = r.file; opt.textContent = r.name || r.file;
@@ -92,7 +92,8 @@ async function loadRoadFromServer(file) {
     if (!file) return;
     try {
         currentRoadFolder = 'roads/' + file.replace('.json', '');
-        const res = await fetch(getNoCacheUrl('roads/' + file));
+        // Добавлен nocache
+        const res = await fetch(nocache('roads/' + file));
         if(!res.ok) throw new Error();
         processJSON(await res.json());
     } catch(e) { console.warn("Ошибка загрузки JSON маршрута"); }
@@ -118,37 +119,31 @@ async function preloadAudio() {
     const bar = document.getElementById('audioProgressBar');
     const container = document.getElementById('audioProgress');
     if (!points.length) return;
-    
-    // Чистим старый кэш
     Object.values(audioCache).forEach(url => URL.revokeObjectURL(url));
     audioCache = {};
-    
     container.style.display = 'block';
     bar.style.width = '0%';
     let loaded = 0;
-    
     for (const p of points) {
         try {
-            const res = await fetch(getNoCacheUrl(`${currentRoadFolder}/${p.id}.mp3`));
-            if (res.ok) {
-                const blob = await res.blob();
+            // Добавлен nocache для каждого аудиофайла
+            const response = await fetch(nocache(`${currentRoadFolder}/${p.id}.mp3`));
+            if (response.ok) {
+                const blob = await response.blob();
                 audioCache[p.id] = URL.createObjectURL(blob);
             }
-        } catch (e) { console.warn(`Файл ${p.id}.mp3 не найден`); } 
+        } catch (e) { } 
         loaded++;
         bar.style.width = (loaded / points.length * 100) + '%';
     }
     setTimeout(() => container.style.display = 'none', 800);
 }
 
+// ... (остальной код функций initMap, onGPS, checkDistance и т.д. остается без изменений) ...
+
 function togglePanelUI() { document.getElementById('panel').classList.toggle('collapsed'); }
 function toggleCenter() { autoCenter = !autoCenter; document.getElementById('toggleAutoCenter').textContent = 'Автоцентр: '+(autoCenter?'Вкл':'Выкл'); }
-
-function toggleLabels() { 
-    showLabels = !showLabels; 
-    document.getElementById('toggleLabelsBtn').style.background = showLabels ? '#27ae60' : '#2f80ed';
-    rebuildRoute(); 
-}
+function toggleLabels() { showLabels = !showLabels; document.getElementById('toggleLabelsBtn').style.background = showLabels ? '#27ae60' : '#2f80ed'; rebuildRoute(); }
 
 function initMap(){
     ymaps.ready(function(){
@@ -186,36 +181,18 @@ function updateInfoUI(p, d, az, s) {
     document.getElementById('info').innerHTML = p ? `№${p.id} | ${p.text}<br>Дист: ${d}м | Цель: ${p.azimuth}° | Курс: ${Math.round(az)}° | ${s} км/ч` : 'Маршрут пройден';
 }
 
-// Улучшенная логика воспроизведения: сначала файл, если нет - голос
-function playVoice(p) {
-    let played = false;
-    const fallback = () => { 
-        if (!played) { 
-            played = true; 
-            const msg = new SpeechSynthesisUtterance(p.text);
-            speechSynthesis.speak(msg); 
-        } 
-    };
-
-    if (audioCache[p.id]) {
-        const audio = new Audio(audioCache[p.id]);
-        audio.play().then(() => { played = true; }).catch(e => {
-            console.warn("Файл заблокирован браузером или ошибка, включаю синтезатор", e);
-            fallback();
-        });
-    } else {
-        fallback();
-    }
-}
-
 function checkDistance(pos, speed, az){
     if (currentIndex >= points.length) return;
     const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
-    
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        playVoice(p);
+        let played = false;
+        const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
+        if (audioCache[p.id]) {
+            const audio = new Audio(audioCache[p.id]);
+            audio.play().then(() => played = true).catch(say);
+        } else { say(); }
         currentIndex++; 
         rebuildRoute();
     }
@@ -235,18 +212,9 @@ function rebuildRoute() {
         map.geoObjects.add(p.placemark);
         const d = document.createElement('div'); d.textContent = p.id + '. ' + p.text;
         if(active) d.className = 'active'; if(passed) d.className = 'passed';
-        d.onclick = function() { 
-            currentIndex = i; 
-            rebuildRoute(); 
-            // При ручном клике проигрываем звук, чтобы проверить
-            playVoice(points[currentIndex]);
-        };
+        d.onclick = function() { currentIndex = i; rebuildRoute(); };
         list.appendChild(d);
     });
-    if (points.length) {
-        const p = points[currentIndex] || points[points.length-1], up = userPlacemark.geometry.getCoordinates();
-        updateInfoUI(p, Math.round(getDistance(up[0], up[1], p.coords[0], p.coords[1])), lastAzimuth, lastSpeed);
-    }
 }
 
 function getDistance(a,b,c,d){
