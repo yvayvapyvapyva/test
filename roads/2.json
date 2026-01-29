@@ -1,19 +1,19 @@
 [
   {
     "id": 1,
-    "lat": "56.241966",
-    "lon": "43.972569",
+    "lat": "56.241631",
+    "lon": "43.975090",
     "azimuth": 0,
     "color": "Gold",
-    "command": "ггг"
+    "command": ""
   },
   {
     "id": 2,
     "lat": "56.242444",
     "lon": "43.973862",
-    "azimuth": 0,
+    "azimuth": 80,
     "color": "blue",
-    "command": "ццццц"
+    "command": ""
   },
   {
     "id": 3,
@@ -21,6 +21,6 @@
     "lon": "43.975903",
     "azimuth": 0,
     "color": "Fuchsia",
-    "command": "чччччч"
+    "command": ""
   }
 ]
