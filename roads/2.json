@@ -54,5 +54,13 @@
     "azimuth": 300,
     "color": "red",
     "command": "семь"
+  },
+  {
+    "id": 8,
+    "lat": "56.241760",
+    "lon": "43.971283",
+    "azimuth": 270,
+    "color": "Silver",
+    "command": "Налево серый дома"
   }
 ]
