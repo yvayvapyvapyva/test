@@ -58,10 +58,10 @@
 let map, userPlacemark, points = [], currentIndex = 0, autoCenter = true, showLabels = false, wakeLock = null, azHistory = [], lastAzimuth = 0, lastSpeed = 0, currentRoadFolder = 'voice';
 let audioCache = {}; 
 
-// Хелпер для создания URL с анти-кэшем
+// Хелпер для получения URL без кэша
 function getNoCacheUrl(url) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}t=${new Date().getTime()}`;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}t=${new Date().getTime()}`;
 }
 
 document.getElementById('start').onclick = async function() {
@@ -79,7 +79,7 @@ async function loadRoadList() {
         const res = await fetch(getNoCacheUrl('roads/list.json'));
         const list = await res.json();
         const sel = document.getElementById('roadSelect');
-        sel.innerHTML = '<option value="">-- Выберите маршрут --</option>'; // Очистка
+        sel.innerHTML = '<option value="">-- Выберите маршрут --</option>'; 
         list.forEach(r => {
             const opt = document.createElement('option');
             opt.value = r.file; opt.textContent = r.name || r.file;
@@ -118,20 +118,23 @@ async function preloadAudio() {
     const bar = document.getElementById('audioProgressBar');
     const container = document.getElementById('audioProgress');
     if (!points.length) return;
+    
+    // Чистим старый кэш
     Object.values(audioCache).forEach(url => URL.revokeObjectURL(url));
     audioCache = {};
+    
     container.style.display = 'block';
     bar.style.width = '0%';
     let loaded = 0;
+    
     for (const p of points) {
         try {
-            const url = getNoCacheUrl(`${currentRoadFolder}/${p.id}.mp3`);
-            const response = await fetch(url);
-            if (response.ok) {
-                const blob = await response.blob();
+            const res = await fetch(getNoCacheUrl(`${currentRoadFolder}/${p.id}.mp3`));
+            if (res.ok) {
+                const blob = await res.blob();
                 audioCache[p.id] = URL.createObjectURL(blob);
             }
-        } catch (e) { } 
+        } catch (e) { console.warn(`Файл ${p.id}.mp3 не найден`); } 
         loaded++;
         bar.style.width = (loaded / points.length * 100) + '%';
     }
@@ -183,18 +186,36 @@ function updateInfoUI(p, d, az, s) {
     document.getElementById('info').innerHTML = p ? `№${p.id} | ${p.text}<br>Дист: ${d}м | Цель: ${p.azimuth}° | Курс: ${Math.round(az)}° | ${s} км/ч` : 'Маршрут пройден';
 }
 
+// Улучшенная логика воспроизведения: сначала файл, если нет - голос
+function playVoice(p) {
+    let played = false;
+    const fallback = () => { 
+        if (!played) { 
+            played = true; 
+            const msg = new SpeechSynthesisUtterance(p.text);
+            speechSynthesis.speak(msg); 
+        } 
+    };
+
+    if (audioCache[p.id]) {
+        const audio = new Audio(audioCache[p.id]);
+        audio.play().then(() => { played = true; }).catch(e => {
+            console.warn("Файл заблокирован браузером или ошибка, включаю синтезатор", e);
+            fallback();
+        });
+    } else {
+        fallback();
+    }
+}
+
 function checkDistance(pos, speed, az){
     if (currentIndex >= points.length) return;
     const p = points[currentIndex], dist = Math.round(getDistance(pos[0], pos[1], p.coords[0], p.coords[1]));
     const diff = Math.abs(((Math.round(az) - p.azimuth + 540) % 360) - 180);
     updateInfoUI(p, dist, az, speed);
+    
     if (dist <= (+document.getElementById('distanceTrigger').value || 20) && diff <= 45) {
-        let played = false;
-        const say = () => { if(!played) { played=true; speechSynthesis.speak(new SpeechSynthesisUtterance(p.text)); } };
-        if (audioCache[p.id]) {
-            const audio = new Audio(audioCache[p.id]);
-            audio.play().then(() => played = true).catch(say);
-        } else { say(); }
+        playVoice(p);
         currentIndex++; 
         rebuildRoute();
     }
@@ -214,7 +235,12 @@ function rebuildRoute() {
         map.geoObjects.add(p.placemark);
         const d = document.createElement('div'); d.textContent = p.id + '. ' + p.text;
         if(active) d.className = 'active'; if(passed) d.className = 'passed';
-        d.onclick = function() { currentIndex = i; rebuildRoute(); };
+        d.onclick = function() { 
+            currentIndex = i; 
+            rebuildRoute(); 
+            // При ручном клике проигрываем звук, чтобы проверить
+            playVoice(points[currentIndex]);
+        };
         list.appendChild(d);
     });
     if (points.length) {
