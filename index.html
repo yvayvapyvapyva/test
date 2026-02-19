@@ -230,17 +230,14 @@ const ui = id => document.getElementById(id);
 
 // Универсальная функция удержания экрана
 async function applyWakeLock() {
-    // 1. Пытаемся запустить видео-заглушку (надежно для iOS)
     const video = ui('noSleepVideo');
     if (video.paused) {
-        // Создаем микро-видео через Blob, если нет внешнего ресурса (белый шум 1x1)
         if (!video.src) {
             video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
         }
         video.play().catch(e => console.log("Video Play Blocked"));
     }
 
-    // 2. Стандартный Screen Wake Lock API
     if ('wakeLock' in navigator) {
         try {
             if (wakeLock) await wakeLock.release();
@@ -251,12 +248,10 @@ async function applyWakeLock() {
     }
 }
 
-// Повторный захват при возврате во вкладку
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') applyWakeLock();
 });
 
-// Активация по любому взаимодействию с экраном
 document.addEventListener('click', applyWakeLock, { once: false });
 document.addEventListener('touchstart', applyWakeLock, { once: false });
 
@@ -278,7 +273,6 @@ ymaps.ready(async () => {
     await fetchGistSources();
     if (gistSources.length > 0) loadData(gistSources[0].url);
     
-    // Начальная попытка (может быть заблокирована без клика)
     applyWakeLock();
 });
 
@@ -379,7 +373,7 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
 
 function getUserIcon(az) {
     const s = 40, c = s/2;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},4 ${c+12},${s-4} ${c},${s-12} ${c-12},${s-4}" fill="#FF3B30" stroke="white" stroke-width="2.5"/></g></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},4 ${c+12},${s-4} ${c},${s-12} ${c-12},${s-4}" fill="#007AFF" stroke="white" stroke-width="2.5"/></g></svg>`;
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
@@ -429,6 +423,8 @@ function initUserTracking() {
             ui('telAz').innerText = `${Math.round(userAz)}°`;
             
             if (autoCenter) map.panTo(coords);
+            
+            // Прямой вызов проверки при получении данных GPS
             checkNavigation();
         }, null, { enableHighAccuracy: true });
     }
@@ -450,8 +446,6 @@ function updateHUD() {
     if (lastUserCoords) {
         const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
         ui('hudDist').innerText = `${Math.round(dist)} м`;
-    } else {
-        ui('hudDist').innerText = "---";
     }
 }
 
@@ -467,16 +461,20 @@ function checkNavigation() {
     const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
     const bearingToTarget = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
 
+    // Обновляем визуализацию HUD немедленно
     updateHUD();
 
+    // Проверка условий триггера (дистанция + направление движения)
     if (dist <= CFG.TRIGGER_DIST && isAngleWithin(lastUserAz, bearingToTarget, 45)) {
         announce(target.command);
         currentIndex++;
+        
+        // Обновляем карту и UI
         updateVisibleMarkers();
         if (currentIndex < pointsData.length) {
             drawActivePath();
             renderPointsList();
-            updateHUD();
+            updateHUD(); // Обновляем HUD для новой цели
         }
     }
 }
