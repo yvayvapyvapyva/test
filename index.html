@@ -74,9 +74,9 @@
             border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); 
             display: none; flex-direction: column; 
             border: 1px solid rgba(255,255,255,0.4); margin-bottom: 12px; 
-            min-width: 220px;
+            min-width: 260px;
             max-width: calc(100vw - 32px); 
-            max-height: 60vh; overflow: hidden;
+            max-height: 75vh; overflow: hidden;
             align-self: flex-end;
         }
         #filterMenu.active { display: flex; }
@@ -110,7 +110,14 @@
         .active .point-badge { background: var(--accent); color: #fff; }
         .point-name { font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.3; word-break: break-word; }
 
-        .source-selector-container { padding: 12px; background: #fff; border-top: 1px solid var(--border); flex-shrink: 0; }
+        .settings-area { padding: 12px; background: #fff; border-top: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+        .input-group { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .input-label { font-size: 12px; font-weight: 600; color: var(--text-main); }
+        .trigger-input { 
+            width: 60px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); 
+            background: #f9f9f9; text-align: center; font-size: 13px; font-weight: 700;
+        }
+
         .source-select { 
             width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--border); 
             background: #f9f9f9; font-size: 13px; font-weight: 600; appearance: none;
@@ -160,11 +167,17 @@
             <div class="menu-title">Маршрут</div>
         </div>
         <div id="pointsList"></div>
-        <div class="source-selector-container">
-            <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
-            <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false)">
-                <option value="" disabled selected>Загрузка...</option>
-            </select>
+        <div class="settings-area">
+            <div class="input-group">
+                <span class="input-label">Триггер (метры)</span>
+                <input type="number" id="triggerInput" class="trigger-input" value="25" min="5" max="500" onchange="updateTrigger(this.value)">
+            </div>
+            <div>
+                <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
+                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false)">
+                    <option value="" disabled selected>Загрузка...</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -182,7 +195,7 @@ const CFG = {
 let map, objectManager, userMarker, pathsCollection;
 let pointsData = [], gistSources = [];
 let currentIndex = -1, autoCenter = false, iconCache = new Map();
-let lastUserCoords = null;
+let lastUserCoords = null, lastUserSpeed = 0, lastUserAz = 0;
 
 tg.ready();
 tg.expand();
@@ -207,6 +220,10 @@ ymaps.ready(async () => {
     await fetchGistSources();
     if (gistSources.length > 0) loadData(gistSources[0].url);
 });
+
+function updateTrigger(val) {
+    CFG.TRIGGER_DIST = parseInt(val) || 25;
+}
 
 async function fetchGistSources() {
     try {
@@ -243,7 +260,8 @@ async function loadData(url) {
         pointsData = data.map(d => ({
             ...d, 
             hex: CFG.COLORS[d.color] || d.color || '#007AFF',
-            command: d.paths?.[0]?.cmd?.[0] || d.comment || "Точка " + d.id
+            command: d.paths?.[0]?.cmd?.[0] || d.comment || "Точка " + d.id,
+            fixedAz: d.az || 0 // Азимут основной метки из JSON
         }));
 
         currentIndex = 0;
@@ -256,7 +274,7 @@ async function loadData(url) {
         drawActivePath();
         
         ui('navHud').classList.add('active');
-        ui('hudCmd').innerText = pointsData[0].command;
+        updateHUD();
 
         ui('loading').classList.add('hidden');
     } catch (e) { ui('loading').innerText = "Ошибка загрузки"; }
@@ -271,7 +289,7 @@ function updateVisibleMarkers() {
             
             const placemark = new ymaps.Placemark([p.lat, p.lon], {}, {
                 iconLayout: 'default#imageWithContent',
-                iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.az || 0, false, isTarget ? 1.0 : 0.5),
+                iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.fixedAz, false, isTarget ? 1.0 : 0.5),
                 iconImageSize: [40, 40],
                 iconImageOffset: [-20, -20],
                 hasBalloon: false,
@@ -298,7 +316,6 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
     return res;
 }
 
-// Генерация красной стрелки для местоположения пользователя
 function getUserIcon(az) {
     const s = 40, c = s/2;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},4 ${c+12},${s-4} ${c},${s-12} ${c-12},${s-4}" fill="#FF3B30" stroke="white" stroke-width="2.5"/></g></svg>`;
@@ -311,6 +328,12 @@ function calculateAzimuth(p1, p2) {
     const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
     const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function isAngleWithin(angle1, angle2, tolerance) {
+    let diff = Math.abs(angle1 - angle2) % 360;
+    if (diff > 180) diff = 360 - diff;
+    return diff <= tolerance;
 }
 
 function initUserTracking() {
@@ -328,8 +351,6 @@ function initUserTracking() {
             const speed = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0;
             
             let userAz = 0;
-            // Используем нативный Heading (если доступно в браузере/девайсе) 
-            // или рассчитываем его по разности координат
             if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
                 userAz = pos.coords.heading;
             } else if (lastUserCoords) {
@@ -337,42 +358,69 @@ function initUserTracking() {
             }
             
             lastUserCoords = coords;
+            lastUserSpeed = speed;
+            lastUserAz = userAz;
 
             userMarker.geometry.setCoordinates(coords);
             userMarker.options.set('iconImageHref', getUserIcon(userAz));
             
             if (autoCenter) map.panTo(coords);
-            checkNavigation(coords, speed, userAz);
+            checkNavigation();
         }, null, { enableHighAccuracy: true });
     }
 }
 
-function checkNavigation(userCoords, speed, userAz) {
+// Функция обновления HUD без ожидания GPS
+function updateHUD() {
     if (pointsData.length === 0 || currentIndex === -1) return;
     
     if (currentIndex >= pointsData.length) {
         ui('hudCmd').innerText = "Маршрут завершен";
+        ui('hudDist').innerText = "---";
         return;
     }
 
     const target = pointsData[currentIndex];
-    const dist = ymaps.coordSystem.geo.getDistance(userCoords, [target.lat, target.lon]);
-    const targetAz = calculateAzimuth(userCoords, [target.lat, target.lon]);
-
-    ui('navHud').classList.add('active');
     ui('hudCmd').innerText = target.command;
-    ui('hudDist').innerText = `${Math.round(dist)} м`;
-    ui('hudSpeed').innerText = `${speed} км/ч`;
-    ui('hudTargetAz').innerText = `${Math.round(targetAz)}°`;
-    ui('hudUserAz').innerText = `${Math.round(userAz)}°`;
+    ui('hudSpeed').innerText = `${lastUserSpeed} км/ч`;
+    ui('hudUserAz').innerText = `${Math.round(lastUserAz)}°`;
+    
+    // Азимут цели теперь берется напрямую из JSON (поле az)
+    ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
 
-    if (dist <= CFG.TRIGGER_DIST) {
+    if (lastUserCoords) {
+        const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
+        ui('hudDist').innerText = `${Math.round(dist)} м`;
+    } else {
+        ui('hudDist').innerText = "---";
+    }
+}
+
+function checkNavigation() {
+    if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords) return;
+    
+    if (currentIndex >= pointsData.length) {
+        updateHUD();
+        return;
+    }
+
+    const target = pointsData[currentIndex];
+    const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
+    
+    // Для триггера используем реальный азимут на точку, чтобы понять, что мы идем к ней
+    const bearingToTarget = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
+
+    updateHUD();
+
+    // Срабатывание триггера: дистанция + совпадение азимута пользователя с направлением на точку
+    if (dist <= CFG.TRIGGER_DIST && isAngleWithin(lastUserAz, bearingToTarget, 45)) {
         announce(target.command);
         currentIndex++;
         updateVisibleMarkers();
         if (currentIndex < pointsData.length) {
             drawActivePath();
             renderPointsList();
+            updateHUD(); // Сразу обновляем на новую цель
         }
     }
 }
@@ -401,10 +449,8 @@ function jumpTo(idx) {
         renderPointsList();
         
         ui('navHud').classList.add('active');
-        ui('hudCmd').innerText = target.command;
-        ui('hudDist').innerText = "---";
+        updateHUD(); // Мгновенное обновление панели
         
-        announce(target.command);
         toggleMenu(false);
     }
 }
@@ -423,7 +469,7 @@ function drawActivePath() {
                 
                 const lastIdx = p.pts.length - 1;
                 const lastPt = p.pts[lastIdx];
-                let arrowAz = target.az || 0;
+                let arrowAz = target.fixedAz;
                 if (p.pts.length >= 2) arrowAz = calculateAzimuth(p.pts[lastIdx - 1], lastPt);
                 
                 pathsCollection.add(new ymaps.Placemark(lastPt, {}, {
