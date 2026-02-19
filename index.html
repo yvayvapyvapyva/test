@@ -29,9 +29,9 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
-        /* HUD навигации */
+        /* HUD навигации сверху (слева) */
         #navHud {
-            position: absolute; top: 16px; left: 16px; right: 16px;
+            position: absolute; top: 16px; left: 16px; right: 110px;
             background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             border-radius: 20px; padding: 16px; color: white; z-index: 9000;
             display: none; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.1);
@@ -49,6 +49,21 @@
         .stat-label { font-size: 9px; color: #aaa; text-transform: uppercase; }
         .stat-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
         .highlight { color: #34C759; }
+
+        /* Телеметрия в верхнем правом углу */
+        #telemetryHud {
+            position: absolute; top: 16px; right: 16px;
+            z-index: 9001;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px; padding: 10px; color: white;
+            display: flex; flex-direction: column; gap: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            min-width: 70px; align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .tel-item { display: flex; flex-direction: column; align-items: center; }
+        .tel-label { font-size: 8px; color: #aaa; text-transform: uppercase; line-height: 1; margin-bottom: 2px; }
+        .tel-value { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
         .filter-container { 
             position: absolute; bottom: 40px; right: 16px; left: 16px; 
@@ -127,12 +142,30 @@
 
         .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
         .loading-overlay.hidden { display: none; }
+
+        /* Скрытый элемент для предотвращения сна на iOS через видео */
+        #noSleepVideo { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="loading" class="loading-overlay">Загрузка данных...</div>
 <div id="map"></div>
+
+<!-- Видео-заглушка для iOS NoSleep -->
+<video id="noSleepVideo" playsinline loop muted></video>
+
+<div id="telemetryHud">
+    <div class="tel-item">
+        <span class="tel-label">КМ/Ч</span>
+        <span class="tel-value" id="telSpeed">0</span>
+    </div>
+    <div style="height:1px; width:80%; background:rgba(255,255,255,0.1); margin:2px 0;"></div>
+    <div class="tel-item">
+        <span class="tel-label">АЗИМУТ</span>
+        <span class="tel-value" id="telAz">0°</span>
+    </div>
+</div>
 
 <div id="navHud">
     <div class="hud-next-label">Следующая цель:</div>
@@ -145,22 +178,14 @@
             <span class="stat-value highlight" id="hudDist">---</span>
         </div>
         <div class="stat-item">
-            <span class="stat-label">Скорость</span>
-            <span class="stat-value" id="hudSpeed">0 км/ч</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-label">Азимут цели</span>
+            <span class="stat-label">Цель азимут</span>
             <span class="stat-value" id="hudTargetAz">---</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-label">Мой азимут</span>
-            <span class="stat-value" id="hudUserAz">---</span>
         </div>
     </div>
 </div>
 
 <div class="filter-container">
-    <div class="map-btn" onclick="toggleMenu()"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
+    <div class="map-btn" onclick="toggleMenu(); applyWakeLock();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
     
     <div id="filterMenu">
         <div class="menu-header">
@@ -174,14 +199,14 @@
             </div>
             <div>
                 <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
-                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false)">
+                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); applyWakeLock();">
                     <option value="" disabled selected>Загрузка...</option>
                 </select>
             </div>
         </div>
     </div>
 
-    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter()"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
+    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); applyWakeLock();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
 </div>
 
 <script>
@@ -203,39 +228,37 @@ tg.expand();
 
 const ui = id => document.getElementById(id);
 
-// Улучшенная функция для предотвращения выключения экрана
-async function requestWakeLock() {
-    if (!('wakeLock' in navigator)) return;
-    
-    try {
-        // Освобождаем старый лок, если он был
-        if (wakeLock !== null) {
-            await wakeLock.release();
-            wakeLock = null;
+// Универсальная функция удержания экрана
+async function applyWakeLock() {
+    // 1. Пытаемся запустить видео-заглушку (надежно для iOS)
+    const video = ui('noSleepVideo');
+    if (video.paused) {
+        // Создаем микро-видео через Blob, если нет внешнего ресурса (белый шум 1x1)
+        if (!video.src) {
+            video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
         }
-        wakeLock = await navigator.wakeLock.request('screen');
-        console.log('Wake Lock успешно активирован');
-        
-        wakeLock.addEventListener('release', () => {
-            console.log('Wake Lock был освобожден');
-        });
-    } catch (err) {
-        // Ошибка 403 / NotAllowedError обычно возникает, если нет взаимодействия пользователя
-        // или если политика разрешений iframe запрещает это.
-        console.warn(`Wake Lock Error: ${err.name}, ${err.message}`);
+        video.play().catch(e => console.log("Video Play Blocked"));
+    }
+
+    // 2. Стандартный Screen Wake Lock API
+    if ('wakeLock' in navigator) {
+        try {
+            if (wakeLock) await wakeLock.release();
+            wakeLock = await navigator.wakeLock.request('screen');
+        } catch (err) {
+            console.warn(`Wake Lock Error: ${err.name}`);
+        }
     }
 }
 
-// Перезапрос блокировки при возврате в приложение (если поддерживается)
-document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible') {
-        await requestWakeLock();
-    }
+// Повторный захват при возврате во вкладку
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyWakeLock();
 });
 
-// Активация Wake Lock по первому клику пользователя (многие браузеры требуют жеста)
-document.addEventListener('touchstart', requestWakeLock, { once: true });
-document.addEventListener('click', requestWakeLock, { once: true });
+// Активация по любому взаимодействию с экраном
+document.addEventListener('click', applyWakeLock, { once: false });
+document.addEventListener('touchstart', applyWakeLock, { once: false });
 
 ymaps.ready(async () => {
     map = new ymaps.Map("map", { 
@@ -255,8 +278,8 @@ ymaps.ready(async () => {
     await fetchGistSources();
     if (gistSources.length > 0) loadData(gistSources[0].url);
     
-    // Пытаемся запустить при старте (может не сработать без клика)
-    requestWakeLock();
+    // Начальная попытка (может быть заблокирована без клика)
+    applyWakeLock();
 });
 
 function updateTrigger(val) {
@@ -402,6 +425,9 @@ function initUserTracking() {
             userMarker.geometry.setCoordinates(coords);
             userMarker.options.set('iconImageHref', getUserIcon(userAz));
             
+            ui('telSpeed').innerText = speed;
+            ui('telAz').innerText = `${Math.round(userAz)}°`;
+            
             if (autoCenter) map.panTo(coords);
             checkNavigation();
         }, null, { enableHighAccuracy: true });
@@ -419,8 +445,6 @@ function updateHUD() {
 
     const target = pointsData[currentIndex];
     ui('hudCmd').innerText = target.command;
-    ui('hudSpeed').innerText = `${lastUserSpeed} км/ч`;
-    ui('hudUserAz').innerText = `${Math.round(lastUserAz)}°`;
     ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
 
     if (lastUserCoords) {
@@ -460,7 +484,7 @@ function checkNavigation() {
 function renderPointsList() {
     const list = ui('pointsList');
     list.innerHTML = pointsData.map((p, i) => `
-        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i})">
+        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); applyWakeLock();">
             <div class="point-badge">${i + 1}</div>
             <div class="point-name">${p.command}</div>
         </div>
