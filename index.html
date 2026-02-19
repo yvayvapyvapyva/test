@@ -107,8 +107,8 @@
         .trigger-input { width: 50px; padding: 6px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); text-align: center; font-weight: 700; }
         .source-select { width: 100%; padding: 8px; border-radius: 10px; background: #f9f9f9; border: 1px solid rgba(0,0,0,0.1); }
 
-        .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; }
-        .loading-overlay.hidden { display: none; }
+        .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; transition: opacity 0.5s ease; }
+        .loading-overlay.hidden { opacity: 0; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -141,12 +141,10 @@
         <div class="menu-header"><div class="menu-title">Маршрут</div></div>
         <div id="pointsList"></div>
         <div class="settings-area">
-            <!-- Настройка дистанции -->
             <div class="settings-row">
                 <span class="setting-label">Триггер (м)</span>
                 <input type="number" id="triggerInput" class="trigger-input" value="25" onchange="CFG.TRIGGER_DIST = parseInt(this.value)">
             </div>
-            <!-- Настройка допуска азимута -->
             <div class="settings-row">
                 <span class="setting-label">Допуск азимута (°)</span>
                 <input type="number" id="azToleranceInput" class="trigger-input" value="45" onchange="CFG.AZ_TOLERANCE = parseInt(this.value)">
@@ -210,8 +208,19 @@ function getIcon(color, text, az, isEnd, opacity = 1) {
     return url;
 }
 
+// Ускоренная инициализация
 ymaps.ready(() => {
-    navigator.geolocation.getCurrentPosition(pos => initMap([pos.coords.latitude, pos.coords.longitude]), () => initMap([55.75, 37.62]));
+    let initialized = false;
+    const start = (pos) => {
+        if (initialized) return;
+        initialized = true;
+        initMap(pos ? [pos.coords.latitude, pos.coords.longitude] : [55.75, 37.62]);
+    };
+
+    // Пробуем получить локацию, но не ждем дольше 5 секунд
+    navigator.geolocation.getCurrentPosition(start, () => start(null), { timeout: 5000, enableHighAccuracy: false });
+    // Если через 6 секунд все еще висит инициализация — форсируем запуск
+    setTimeout(() => start(null), 6000);
 });
 
 function initMap(center) {
