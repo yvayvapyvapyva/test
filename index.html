@@ -54,7 +54,6 @@
         .stat-label { font-size: 8px; color: #aaa; text-transform: uppercase; }
         .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
         .highlight { color: #34C759; }
-        /* Индикатор попадания в триггер */
         .stat-value.in-range { color: #34C759; text-shadow: 0 0 8px rgba(52, 199, 89, 0.6); }
 
         /* Telemetry top right */
@@ -144,17 +143,18 @@
             background-repeat: no-repeat; background-position: right 8px center; background-size: 12px;
         }
 
-        .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+        .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; text-align: center; padding: 20px; }
         .loading-overlay.hidden { display: none; }
         #noSleepVideo { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
     </style>
 </head>
 <body>
 
-<div id="loading" class="loading-overlay">Загрузка данных...</div>
+<div id="loading" class="loading-overlay">Поиск вашего местоположения...</div>
 <div id="map"></div>
 
-<video id="noSleepVideo" playsinline loop muted></video>
+<!-- Видео для предотвращения сна на iOS -->
+<video id="noSleepVideo" playsinline loop muted style="position:fixed; top:0; left:0; width:1px; height:1px; z-index:-1;"></video>
 
 <div id="telemetryHud">
     <div class="tel-item">
@@ -199,7 +199,7 @@
                 <input type="number" id="triggerInput" class="trigger-input" value="25" min="5" max="500" onchange="updateTrigger(this.value)">
             </div>
             <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); handleUserInteraction();">
-                <option value="" disabled selected>Файл...</option>
+                <option value="" disabled selected>Выбрать файл...</option>
             </select>
         </div>
     </div>
@@ -212,7 +212,7 @@ const tg = window.Telegram.WebApp;
 const CFG = {
     USER_ID: "yvayvapyvapyva",
     TRIGGER_DIST: 25,
-    AZ_TOLERANCE: 45, // Допуск по азимуту (градусы)
+    AZ_TOLERANCE: 45, 
     COLORS: { Gold: '#FFD700', Blue: '#007AFF', Red: '#FF3B30', Lime: '#34C759', Fuchsia: '#AF52DE', Orange: '#FF9500', Purple: '#5856D6', Cyan: '#5AC8FA', Brown: '#A2845E', Grey: '#8E8E93' }
 };
 
@@ -228,8 +228,9 @@ tg.expand();
 
 const ui = id => document.getElementById(id);
 
+// Основная функция для активации предотвращения сна (требует жеста пользователя)
 async function handleUserInteraction() {
-    applyWakeLock();
+    activateWakeLock();
     if (!ttsEnabled && window.speechSynthesis) {
         const silence = new SpeechSynthesisUtterance("");
         window.speechSynthesis.speak(silence);
@@ -237,30 +238,71 @@ async function handleUserInteraction() {
     }
 }
 
-async function applyWakeLock() {
+// Двойная блокировка спящего режима
+async function activateWakeLock() {
+    // 1. Метод невидимого видео (для iOS/старых систем)
     const video = ui('noSleepVideo');
     if (video.paused) {
+        // Минимально короткий пустой MP4 для зацикливания
         video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
-        video.play().catch(() => {});
+        video.play().catch(e => console.warn('Video NoSleep blocked', e));
     }
+
+    // 2. Screen Wake Lock API (современный метод)
     if ('wakeLock' in navigator) {
         try {
-            if (wakeLock) await wakeLock.release();
+            if (wakeLock !== null) return; // Уже активно
             wakeLock = await navigator.wakeLock.request('screen');
-        } catch (err) {}
+            wakeLock.addEventListener('release', () => {
+                wakeLock = null;
+                // Автоматически пытаемся вернуть блокировку при возвращении в окно
+                if (document.visibilityState === 'visible') activateWakeLock();
+            });
+        } catch (err) {
+            console.warn('Wake Lock API failed', err);
+        }
     }
 }
 
+// Восстановление блокировки при возврате в приложение
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        activateWakeLock();
+    }
+});
+
+function getInitialPosition() {
+    return new Promise((resolve) => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
+                () => resolve([55.75, 37.62]), 
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        } else {
+            resolve([55.75, 37.62]);
+        }
+    });
+}
+
 ymaps.ready(async () => {
-    map = new ymaps.Map("map", { center: [55.75, 37.62], zoom: 11, type: 'yandex#satellite', controls: [] });
+    const startPos = await getInitialPosition();
+    
+    map = new ymaps.Map("map", { 
+        center: startPos, 
+        zoom: 15, 
+        type: 'yandex#satellite', 
+        controls: [] 
+    });
+    
     objectManager = new ymaps.GeoObjectCollection();
     pathsCollection = new ymaps.GeoObjectCollection();
     map.geoObjects.add(objectManager);
     map.geoObjects.add(pathsCollection);
 
-    initUserTracking();
+    initUserTracking(startPos);
     await fetchGistSources();
-    if (gistSources.length > 0) loadData(gistSources[0].url);
+    ui('loading').classList.add('hidden');
 });
 
 function updateTrigger(val) { CFG.TRIGGER_DIST = parseInt(val) || 25; }
@@ -278,10 +320,11 @@ async function fetchGistSources() {
             });
         });
         ui('sourceSelect').innerHTML = '<option value="" disabled selected>Выбрать файл...</option>' + gistSources.map(s => `<option value="${s.url}">${s.name}</option>`).join('');
-    } catch (e) { ui('loading').innerText = "Ошибка GitHub"; }
+    } catch (e) { console.error("GitHub fetch failed", e); }
 }
 
 async function loadData(url) {
+    ui('loading').innerText = "Загрузка маршрута...";
     ui('loading').classList.remove('hidden');
     iconCache.clear(); objectManager.removeAll(); pathsCollection.removeAll();
     currentIndex = -1; ui('navHud').classList.remove('active');
@@ -302,7 +345,7 @@ async function loadData(url) {
         renderPointsList(); drawActivePath();
         ui('navHud').classList.add('active');
         updateHUD(); ui('loading').classList.add('hidden');
-    } catch (e) { ui('loading').innerText = "Ошибка загрузки"; }
+    } catch (e) { ui('loading').innerText = "Ошибка загрузки данных"; }
 }
 
 function updateVisibleMarkers() {
@@ -343,22 +386,16 @@ function calculateAzimuth(p1, p2) {
     return (Math.atan2(y,x)*180/Math.PI + 360)%360;
 }
 
-function initUserTracking() {
-    userMarker = new ymaps.Placemark([0,0], {}, { iconLayout: 'default#image', iconImageSize: [40, 40], iconImageOffset: [-20, -20], iconImageHref: getUserIcon(0) });
+function initUserTracking(initialCoords) {
+    userMarker = new ymaps.Placemark(initialCoords, {}, { iconLayout: 'default#image', iconImageSize: [40, 40], iconImageOffset: [-20, -20], iconImageHref: getUserIcon(0) });
     map.geoObjects.add(userMarker);
     
-    const geoOptions = { 
-        enableHighAccuracy: true, 
-        timeout: 5000, 
-        maximumAge: 0 
-    };
+    const geoOptions = { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 };
 
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
-            
-            // Если heading не определен (устройство не движется), используем азимут последнего перемещения
             let userAz = pos.coords.heading !== null ? pos.coords.heading : (lastUserCoords ? calculateAzimuth(lastUserCoords, coords) : lastUserAz);
             
             lastUserCoords = coords; 
@@ -372,12 +409,8 @@ function initUserTracking() {
             ui('telAz').innerText = `${Math.round(userAz)}°`;
             
             if (autoCenter) map.panTo(coords);
-            
-            // Прямой запуск навигационной проверки при каждом апдейте координат
             checkNavigation();
-        }, err => {
-            console.warn('Geo Error:', err);
-        }, geoOptions);
+        }, err => console.warn('Geo Update Error:', err), geoOptions);
     }
 }
 
@@ -398,8 +431,6 @@ function updateHUD() {
     if (lastUserCoords) {
         const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
         ui('hudDist').innerText = `${Math.round(d)}м`;
-        
-        // Подсветка, если условия триггера выполняются (визуальная отладка)
         const azDiff = getAzimuthDifference(lastUserAz, target.fixedAz);
         ui('hudDist').classList.toggle('in-range', d <= CFG.TRIGGER_DIST);
         ui('hudTargetAz').classList.toggle('in-range', azDiff <= CFG.AZ_TOLERANCE);
@@ -414,17 +445,10 @@ function getAzimuthDifference(az1, az2) {
 
 function checkNavigation() {
     if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords || currentIndex >= pointsData.length) return;
-    
     const target = pointsData[currentIndex];
     const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
     const azDiff = getAzimuthDifference(lastUserAz, target.fixedAz);
-    
-    // Обновляем текст в HUD ДО срабатывания, чтобы видеть текущие цифры
     updateHUD();
-
-    // ПРОВЕРКА ТРИГГЕРА
-    // 1. Дистанция меньше заданной
-    // 2. Текущий азимут движения пользователя совпадает с азимутом точки (в пределах допуска)
     if (dist <= CFG.TRIGGER_DIST && azDiff <= CFG.AZ_TOLERANCE) {
         processNextPoint();
     }
@@ -434,7 +458,6 @@ function processNextPoint() {
     const target = pointsData[currentIndex];
     announce(target.command);
     currentIndex++;
-    
     updateVisibleMarkers();
     if (currentIndex < pointsData.length) { 
         drawActivePath(); 
@@ -452,7 +475,6 @@ function renderPointsList() {
             <div class="point-name">${p.command}</div>
         </div>
     `).join('');
-    
     const activeEl = ui(`point-${currentIndex}`);
     if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -466,7 +488,6 @@ function jumpTo(idx) {
         drawActivePath(); 
         renderPointsList(); 
         ui('navHud').classList.add('active');
-        // Сразу проверяем — вдруг мы уже стоим на этой точке
         checkNavigation();
         toggleMenu(false);
     }
