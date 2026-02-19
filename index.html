@@ -29,31 +29,44 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
-        /* Compact Navigation HUD */
+        /* Compact Navigation HUD - Updated for word wrap */
         #navHud {
             position: absolute; top: 12px; left: 12px; right: 100px;
             background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border-radius: 14px; padding: 10px 14px; color: white; z-index: 9000;
-            display: none; flex-direction: column; gap: 4px; border: 1px solid var(--border);
+            border-radius: 14px; padding: 12px 14px; color: white; z-index: 9000;
+            display: none; flex-direction: column; gap: 8px; border: 1px solid var(--border);
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             pointer-events: none;
+            max-height: 40vh; /* Предотвращаем перекрытие всей карты */
+            overflow: hidden;
         }
         #navHud.active { display: flex; }
         
-        .hud-header { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .hud-header { display: flex; align-items: flex-start; gap: 10px; }
         .hud-index { 
             background: var(--accent); color: white; 
-            font-size: 10px; font-weight: 800; 
-            padding: 2px 6px; border-radius: 6px; 
-            min-width: 14px; text-align: center;
+            font-size: 11px; font-weight: 800; 
+            padding: 2px 8px; border-radius: 6px; 
+            min-width: 16px; text-align: center;
+            margin-top: 2px;
+            flex-shrink: 0;
         }
-        .hud-cmd { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        /* Allow multiline wrap for commands */
+        .hud-cmd { 
+            font-size: 16px; 
+            font-weight: 700; 
+            color: #fff; 
+            line-height: 1.25; 
+            flex: 1;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: normal; /* Разрешаем перенос */
+        }
         
-        .hud-stats { display: flex; align-items: center; gap: 15px; margin-top: 2px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .hud-stats { display: flex; align-items: center; gap: 15px; margin-top: 2px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
         .stat-item { display: flex; align-items: baseline; gap: 4px; }
         .stat-label { font-size: 8px; color: #aaa; text-transform: uppercase; }
         .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
-        .highlight { color: #34C759; }
         .stat-value.in-range { color: #34C759; text-shadow: 0 0 8px rgba(52, 199, 89, 0.6); }
 
         /* Telemetry top right */
@@ -153,7 +166,6 @@
 <div id="loading" class="loading-overlay">Поиск вашего местоположения...</div>
 <div id="map"></div>
 
-<!-- Видео для предотвращения сна на iOS -->
 <video id="noSleepVideo" playsinline loop muted style="position:fixed; top:0; left:0; width:1px; height:1px; z-index:-1;"></video>
 
 <div id="telemetryHud">
@@ -228,7 +240,6 @@ tg.expand();
 
 const ui = id => document.getElementById(id);
 
-// Основная функция для активации предотвращения сна (требует жеста пользователя)
 async function handleUserInteraction() {
     activateWakeLock();
     if (!ttsEnabled && window.speechSynthesis) {
@@ -238,24 +249,18 @@ async function handleUserInteraction() {
     }
 }
 
-// Двойная блокировка спящего режима
 async function activateWakeLock() {
-    // 1. Метод невидимого видео (для iOS/старых систем)
     const video = ui('noSleepVideo');
     if (video.paused) {
-        // Минимально короткий пустой MP4 для зацикливания
         video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
         video.play().catch(e => console.warn('Video NoSleep blocked', e));
     }
-
-    // 2. Screen Wake Lock API (современный метод)
     if ('wakeLock' in navigator) {
         try {
-            if (wakeLock !== null) return; // Уже активно
+            if (wakeLock !== null) return;
             wakeLock = await navigator.wakeLock.request('screen');
             wakeLock.addEventListener('release', () => {
                 wakeLock = null;
-                // Автоматически пытаемся вернуть блокировку при возвращении в окно
                 if (document.visibilityState === 'visible') activateWakeLock();
             });
         } catch (err) {
@@ -264,7 +269,6 @@ async function activateWakeLock() {
     }
 }
 
-// Восстановление блокировки при возврате в приложение
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
         activateWakeLock();
@@ -287,19 +291,11 @@ function getInitialPosition() {
 
 ymaps.ready(async () => {
     const startPos = await getInitialPosition();
-    
-    map = new ymaps.Map("map", { 
-        center: startPos, 
-        zoom: 15, 
-        type: 'yandex#satellite', 
-        controls: [] 
-    });
-    
+    map = new ymaps.Map("map", { center: startPos, zoom: 15, type: 'yandex#satellite', controls: [] });
     objectManager = new ymaps.GeoObjectCollection();
     pathsCollection = new ymaps.GeoObjectCollection();
     map.geoObjects.add(objectManager);
     map.geoObjects.add(pathsCollection);
-
     initUserTracking(startPos);
     await fetchGistSources();
     ui('loading').classList.add('hidden');
@@ -328,7 +324,6 @@ async function loadData(url) {
     ui('loading').classList.remove('hidden');
     iconCache.clear(); objectManager.removeAll(); pathsCollection.removeAll();
     currentIndex = -1; ui('navHud').classList.remove('active');
-
     try {
         const res = await fetch(url);
         const data = await res.json();
@@ -389,25 +384,17 @@ function calculateAzimuth(p1, p2) {
 function initUserTracking(initialCoords) {
     userMarker = new ymaps.Placemark(initialCoords, {}, { iconLayout: 'default#image', iconImageSize: [40, 40], iconImageOffset: [-20, -20], iconImageHref: getUserIcon(0) });
     map.geoObjects.add(userMarker);
-    
     const geoOptions = { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 };
-
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
             let userAz = pos.coords.heading !== null ? pos.coords.heading : (lastUserCoords ? calculateAzimuth(lastUserCoords, coords) : lastUserAz);
-            
-            lastUserCoords = coords; 
-            lastUserSpeed = speed; 
-            lastUserAz = userAz;
-            
+            lastUserCoords = coords; lastUserSpeed = speed; lastUserAz = userAz;
             userMarker.geometry.setCoordinates(coords);
             userMarker.options.set('iconImageHref', getUserIcon(userAz));
-            
             ui('telSpeed').innerText = Math.round(speed);
             ui('telAz').innerText = `${Math.round(userAz)}°`;
-            
             if (autoCenter) map.panTo(coords);
             checkNavigation();
         }, err => console.warn('Geo Update Error:', err), geoOptions);
@@ -427,7 +414,6 @@ function updateHUD() {
     ui('hudIndex').innerText = currentIndex + 1;
     ui('hudCmd').innerText = target.command;
     ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
-    
     if (lastUserCoords) {
         const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
         ui('hudDist').innerText = `${Math.round(d)}м`;
@@ -460,12 +446,8 @@ function processNextPoint() {
     currentIndex++;
     updateVisibleMarkers();
     if (currentIndex < pointsData.length) { 
-        drawActivePath(); 
-        renderPointsList(); 
-        updateHUD(); 
-    } else {
-        updateHUD();
-    }
+        drawActivePath(); renderPointsList(); updateHUD(); 
+    } else { updateHUD(); }
 }
 
 function renderPointsList() {
@@ -485,11 +467,9 @@ function jumpTo(idx) {
     const t = pointsData[idx];
     if (t) {
         map.panTo([t.lat, t.lon], { zoom: 17 });
-        drawActivePath(); 
-        renderPointsList(); 
+        drawActivePath(); renderPointsList(); 
         ui('navHud').classList.add('active');
-        checkNavigation();
-        toggleMenu(false);
+        checkNavigation(); toggleMenu(false);
     }
 }
 
