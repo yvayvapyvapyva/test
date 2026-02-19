@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <title>Route Navigator Optimized</title>
+    <title>Route Navigator Full</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://api-maps.yandex.ru/2.1/?apikey=YANDEX_API_KEY&lang=ru_RU&suppressMapOpenBlock=true"></script>
@@ -199,54 +199,25 @@ async function interact() {
 }
 
 /**
- * Продвинутая функция воспроизведения с двойной проверкой кодировки.
+ * УПРОЩЕННАЯ ФУНКЦИЯ ПОИСКА MP3
+ * Всегда использует NFD нормализацию, так как это рабочий вариант для GitHub
  */
-async function playCommand(cmdText) {
-    if (!cmdText) return;
-    
-    // Формируем базовое имя
-    const baseName = cmdText.toLowerCase()
+function playCommand(text) {
+    if (!text) return;
+    // Очистка текста для имени файла
+    const baseName = text.toLowerCase()
         .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "")
         .trim()
         .replace(/\s+/g, '_');
 
-    // Пробуем два варианта нормализации: NFC (единый символ) и NFD (составной)
-    const variants = [
-        baseName.normalize('NFC'),
-        baseName.normalize('NFD')
-    ];
-
-    for (let variant of variants) {
-        const fileName = variant + '.mp3';
-        const audioUrl = encodeURIComponent(fileName);
-        
-        try {
-            const isAvailable = await checkFileExists(audioUrl);
-            if (isAvailable) {
-                console.log("Playing:", fileName);
-                new Audio(audioUrl).play();
-                return; // Успех
-            }
-        } catch(e) {}
-    }
+    // GitHub Pages хранит кириллицу в NFD (разложенная Й). 
+    // Нормализуем и сразу воспроизводим без лишних проверок.
+    const fileName = baseName.normalize('NFD') + '.mp3';
+    const audioUrl = encodeURIComponent(fileName);
     
-    console.error("404: Все варианты имени файла не найдены:", baseName);
-}
-
-/**
- * Проверяет существование файла перед проигрыванием
- */
-function checkFileExists(url) {
-    return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('HEAD', url, true);
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) {
-                resolve(xhr.status === 200);
-            }
-        };
-        xhr.send();
-    });
+    console.log("Playing:", fileName);
+    const audio = new Audio(audioUrl);
+    audio.play().catch(e => console.log("Audio play failed:", audioUrl));
 }
 
 function calcAz(p1, p2) {
