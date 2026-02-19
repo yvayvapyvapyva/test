@@ -196,11 +196,46 @@ let map, objectManager, userMarker, pathsCollection;
 let pointsData = [], gistSources = [];
 let currentIndex = -1, autoCenter = false, iconCache = new Map();
 let lastUserCoords = null, lastUserSpeed = 0, lastUserAz = 0;
+let wakeLock = null;
 
 tg.ready();
 tg.expand();
 
 const ui = id => document.getElementById(id);
+
+// Улучшенная функция для предотвращения выключения экрана
+async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    
+    try {
+        // Освобождаем старый лок, если он был
+        if (wakeLock !== null) {
+            await wakeLock.release();
+            wakeLock = null;
+        }
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock успешно активирован');
+        
+        wakeLock.addEventListener('release', () => {
+            console.log('Wake Lock был освобожден');
+        });
+    } catch (err) {
+        // Ошибка 403 / NotAllowedError обычно возникает, если нет взаимодействия пользователя
+        // или если политика разрешений iframe запрещает это.
+        console.warn(`Wake Lock Error: ${err.name}, ${err.message}`);
+    }
+}
+
+// Перезапрос блокировки при возврате в приложение (если поддерживается)
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+        await requestWakeLock();
+    }
+});
+
+// Активация Wake Lock по первому клику пользователя (многие браузеры требуют жеста)
+document.addEventListener('touchstart', requestWakeLock, { once: true });
+document.addEventListener('click', requestWakeLock, { once: true });
 
 ymaps.ready(async () => {
     map = new ymaps.Map("map", { 
@@ -219,6 +254,9 @@ ymaps.ready(async () => {
     initUserTracking();
     await fetchGistSources();
     if (gistSources.length > 0) loadData(gistSources[0].url);
+    
+    // Пытаемся запустить при старте (может не сработать без клика)
+    requestWakeLock();
 });
 
 function updateTrigger(val) {
@@ -261,7 +299,7 @@ async function loadData(url) {
             ...d, 
             hex: CFG.COLORS[d.color] || d.color || '#007AFF',
             command: d.paths?.[0]?.cmd?.[0] || d.comment || "Точка " + d.id,
-            fixedAz: d.az || 0 // Азимут основной метки из JSON
+            fixedAz: d.az || 0
         }));
 
         currentIndex = 0;
@@ -370,7 +408,6 @@ function initUserTracking() {
     }
 }
 
-// Функция обновления HUD без ожидания GPS
 function updateHUD() {
     if (pointsData.length === 0 || currentIndex === -1) return;
     
@@ -384,8 +421,6 @@ function updateHUD() {
     ui('hudCmd').innerText = target.command;
     ui('hudSpeed').innerText = `${lastUserSpeed} км/ч`;
     ui('hudUserAz').innerText = `${Math.round(lastUserAz)}°`;
-    
-    // Азимут цели теперь берется напрямую из JSON (поле az)
     ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
 
     if (lastUserCoords) {
@@ -406,13 +441,10 @@ function checkNavigation() {
 
     const target = pointsData[currentIndex];
     const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
-    
-    // Для триггера используем реальный азимут на точку, чтобы понять, что мы идем к ней
     const bearingToTarget = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
 
     updateHUD();
 
-    // Срабатывание триггера: дистанция + совпадение азимута пользователя с направлением на точку
     if (dist <= CFG.TRIGGER_DIST && isAngleWithin(lastUserAz, bearingToTarget, 45)) {
         announce(target.command);
         currentIndex++;
@@ -420,7 +452,7 @@ function checkNavigation() {
         if (currentIndex < pointsData.length) {
             drawActivePath();
             renderPointsList();
-            updateHUD(); // Сразу обновляем на новую цель
+            updateHUD();
         }
     }
 }
@@ -447,10 +479,8 @@ function jumpTo(idx) {
         map.panTo([target.lat, target.lon], { zoom: 17 });
         drawActivePath();
         renderPointsList();
-        
         ui('navHud').classList.add('active');
-        updateHUD(); // Мгновенное обновление панели
-        
+        updateHUD();
         toggleMenu(false);
     }
 }
