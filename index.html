@@ -183,7 +183,7 @@
 </div>
 
 <div class="filter-container">
-    <div class="map-btn" onclick="toggleMenu(); handleUserInteraction();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
+    <div class="map-btn" onclick="toggleMenu(); unlockAudio();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
     
     <div id="filterMenu">
         <div class="menu-header">
@@ -197,14 +197,14 @@
             </div>
             <div>
                 <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
-                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); handleUserInteraction();">
+                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); unlockAudio();">
                     <option value="" disabled selected>Загрузка...</option>
                 </select>
             </div>
         </div>
     </div>
 
-    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); handleUserInteraction();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
+    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); unlockAudio();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
 </div>
 
 <script>
@@ -220,34 +220,37 @@ let pointsData = [], gistSources = [];
 let currentIndex = -1, autoCenter = false, iconCache = new Map();
 let lastUserCoords = null, lastUserSpeed = 0, lastUserAz = 0;
 let wakeLock = null;
-let ttsEnabled = false;
+let audioUnlocked = false;
 
 tg.ready();
 tg.expand();
 
 const ui = id => document.getElementById(id);
 
-// Разблокировка TTS и WakeLock по клику
-async function handleUserInteraction() {
-    applyWakeLock();
-    if (!ttsEnabled) {
-        // Проигрываем пустую фразу для разблокировки аудио-движка
-        const silence = new SpeechSynthesisUtterance("");
-        window.speechSynthesis.speak(silence);
-        ttsEnabled = true;
-        console.log("TTS Engine Unlocked");
+// Принудительная разблокировка звука на iOS
+function unlockAudio() {
+    if (audioUnlocked) return;
+    
+    // Проигрываем пустое сообщение для получения прав доступа
+    if (window.speechSynthesis) {
+        const silent = new SpeechSynthesisUtterance(" ");
+        silent.volume = 0;
+        window.speechSynthesis.speak(silent);
+        audioUnlocked = true;
+        console.log("Audio Unlocked for iOS");
     }
-}
-
-async function applyWakeLock() {
+    
+    // Заодно активируем видео-заглушку против сна
     const video = ui('noSleepVideo');
     if (video.paused) {
         if (!video.src) {
             video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
         }
-        video.play().catch(e => console.log("Video Play Blocked"));
+        video.play().catch(() => {});
     }
+}
 
+async function applyWakeLock() {
     if ('wakeLock' in navigator) {
         try {
             if (wakeLock) await wakeLock.release();
@@ -259,12 +262,12 @@ async function applyWakeLock() {
 }
 
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') applyWakeLock();
+    if (document.visibilityState === 'visible') {
+        applyWakeLock();
+        // На iOS часто нужно перепроверить статус синтеза при возврате
+        if (window.speechSynthesis.speaking) window.speechSynthesis.resume();
+    }
 });
-
-// Глобальные слушатели для гарантированной активации на мобильных
-document.addEventListener('click', handleUserInteraction, { once: false });
-document.addEventListener('touchstart', handleUserInteraction, { once: false });
 
 ymaps.ready(async () => {
     map = new ymaps.Map("map", { 
@@ -383,7 +386,6 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
 }
 
 function getUserIcon(az) {
-    // Увеличено поле (viewBox) для предотвращения обрезки при вращении
     const s = 44, c = s/2; 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},6 L${s-10},${s-8} L${c},${s-14} L10,${s-8} Z" fill="#FF3B30" stroke="white" stroke-width="2.5" stroke-linejoin="round"/></g></svg>`;
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
@@ -407,7 +409,7 @@ function initUserTracking() {
     userMarker = new ymaps.Placemark([0,0], {}, {
         iconLayout: 'default#image', 
         iconImageSize: [44, 44], 
-        iconImageOffset: [-22, -22], // Центрирование увеличенного контейнера
+        iconImageOffset: [-22, -22], 
         iconImageHref: getUserIcon(0)
     });
     map.geoObjects.add(userMarker);
@@ -474,7 +476,6 @@ function checkNavigation() {
     const isHeadingCorrect = isAngleWithin(lastUserAz, bearingToTarget, 45);
 
     if (withinDistance && isHeadingCorrect) {
-        console.log(`Trigger! Point: ${target.id}, Cmd: ${target.command}`);
         announce(target.command);
         currentIndex++;
         
@@ -494,7 +495,7 @@ function checkNavigation() {
 function renderPointsList() {
     const list = ui('pointsList');
     list.innerHTML = pointsData.map((p, i) => `
-        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); handleUserInteraction();">
+        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); unlockAudio();">
             <div class="point-badge">${i + 1}</div>
             <div class="point-name">${p.command}</div>
         </div>
@@ -552,9 +553,7 @@ function drawActivePath() {
 function announce(text) {
     if (!text || !window.speechSynthesis) return;
     
-    console.log("Attempting to speak:", text);
-    
-    // Останавливаем текущую речь
+    // iOS требует явного сброса текущей очереди
     window.speechSynthesis.cancel();
     
     const msg = new SpeechSynthesisUtterance(text);
@@ -563,11 +562,10 @@ function announce(text) {
     msg.rate = 1.0;
     msg.pitch = 1.0;
 
-    // Важно для мобильных: если движок "завис", переинициализируем
-    msg.onend = () => console.log("Speech finished");
-    msg.onerror = (e) => console.error("Speech error:", e);
-    
-    window.speechSynthesis.speak(msg);
+    // В iOS иногда нужно подождать микро-паузу после cancel
+    setTimeout(() => {
+        window.speechSynthesis.speak(msg);
+    }, 50);
 }
 
 function toggleMenu(val) {
