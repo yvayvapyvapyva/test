@@ -102,7 +102,6 @@
         .active .point-badge { background: var(--accent); color: #fff; }
         .point-name { font-size: 13px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Стили для кнопки прослушивания */
         .speak-btn {
             width: 32px; height: 32px; border-radius: 8px;
             display: flex; align-items: center; justify-content: center;
@@ -175,7 +174,7 @@ const CFG = {
     USER_ID: "yvayvapyvapyva",
     TRIGGER_DIST: 25,
     AZ_TOLERANCE: 45, 
-    DEFAULT_CENTER: [56.3268, 44.0059], // Нижний Новгород
+    DEFAULT_CENTER: [56.3268, 44.0059],
     COLORS: { Gold:'#FFD700', Blue:'#007AFF', Red:'#FF3B30', Lime:'#34C759', Fuchsia:'#AF52DE', Orange:'#FF9500', Purple:'#5856D6', Cyan:'#5AC8FA', Brown:'#A2845E', Grey:'#8E8E93' }
 };
 
@@ -199,10 +198,28 @@ async function interact() {
     if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
 }
 
+/**
+ * Функция воспроизведения с поддержкой кириллицы.
+ */
 function playCommand(cmdText) {
-    const fileName = cmdText.toLowerCase().replace(/ /g, '_') + '.mp3';
-    const audio = new Audio(fileName);
-    audio.play().catch(e => console.warn("Audio file not found:", fileName));
+    if (!cmdText) return;
+    
+    // Очищаем имя от знаков препинания и заменяем пробелы на _
+    const cleanName = cmdText.toLowerCase()
+        .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "") // Убрали подчеркивание из удаления, чтобы оно не удаляло уже имеющиеся
+        .replace(/\s+/g, '_');
+    
+    const fileName = cleanName + '.mp3';
+    
+    // encodeURIComponent важен для корректной передачи кириллицы (включая "й") в URL
+    const encodedPath = encodeURIComponent(fileName);
+    
+    console.log("Запрос файла:", fileName, "-> URL:", encodedPath);
+    
+    const audio = new Audio(encodedPath);
+    audio.play().catch(e => {
+        console.error("Ошибка аудио:", fileName, "Убедитесь, что файл существует именно под таким именем.");
+    });
 }
 
 function calcAz(p1, p2) {
