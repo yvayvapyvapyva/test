@@ -29,8 +29,6 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
-        /* Стандартный вид балуна возвращен (удалены переопределения стилей ymaps-balloon) */
-
         #navHud {
             position: absolute; top: 12px; left: 12px; right: 100px;
             background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
@@ -122,7 +120,6 @@
         .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; transition: opacity 0.5s ease; }
         .loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
-        /* Контент внутри балуна (адаптирован под стандартное окно) */
         .balloon-inner { padding: 5px; min-width: 150px; text-align: center; }
         .balloon-cmd { font-size: 14px; font-weight: 700; color: #1d1d1f; margin-bottom: 8px; display: block; line-height: 1.2; }
         .balloon-btn { 
@@ -190,7 +187,7 @@ const CFG = {
     COLORS: { Gold:'#FFD700', Blue:'#007AFF', Red:'#FF3B30', Lime:'#34C759', Fuchsia:'#AF52DE', Orange:'#FF9500', Purple:'#5856D6', Cyan:'#5AC8FA', Brown:'#A2845E', Grey:'#8E8E93' }
 };
 
-let map, objectManager, userMarker, pathsCollection;
+let map, objectManager, userMarker, pathsCollection, previewPathsCollection;
 let pointsData = [], currentIndex = -1, autoCenter = true, iconCache = new Map();
 let lastPos = null, lastSpeed = 0, lastAz = 0, wakeLock = null, audioInit = false;
 
@@ -245,7 +242,7 @@ function getIcon(col, txt, az, isEnd, opacity = 1) {
             <polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/>
         </g>
         <circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/>
-        <text x="${c}" y="${c + 0.5}" font-size="9" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text>
+        <text x="${c}" y="${c + 0.5}" font-size="${isEnd?8:9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text>
     </svg>`;
     
     const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
@@ -266,14 +263,57 @@ ymaps.ready(() => {
 
 function initMap(center) {
     map = new ymaps.Map("map", { center, zoom: 15, type: 'yandex#satellite', controls: [] });
-    objectManager = new ymaps.GeoObjectCollection();
+    
+    objectManager = new ymaps.ObjectManager({ clusterize: false });
+    
     pathsCollection = new ymaps.GeoObjectCollection();
-    map.geoObjects.add(objectManager).add(pathsCollection);
+    previewPathsCollection = new ymaps.GeoObjectCollection();
+    
+    map.geoObjects.add(objectManager).add(pathsCollection).add(previewPathsCollection);
     
     userMarker = new ymaps.Placemark(center, {}, { iconLayout: 'default#image', iconImageSize: [40, 40], iconImageOffset: [-20, -20] });
     map.geoObjects.add(userMarker);
 
-    // Закрытие балуна при клике в любом месте карты
+    objectManager.events.add('balloonopen', (e) => {
+        const objectId = e.get('objectId');
+        const absoluteIndex = pointsData.findIndex(p => p.id === objectId);
+        const pointData = pointsData[absoluteIndex];
+        
+        if (pointData && pointData.paths) {
+            previewPathsCollection.removeAll();
+            
+            // Если точка не является текущей целью, делаем её пути прозрачными
+            const isTarget = absoluteIndex === currentIndex;
+            const previewOpacity = isTarget ? 0.8 : 0.6;
+            const previewMarkerOpacity = isTarget ? 1.0 : 0.6;
+
+            pointData.paths.forEach((pathSegment, i) => {
+                if (!pathSegment.pts || pathSegment.pts.length < 2) return;
+                
+                previewPathsCollection.add(new ymaps.Polyline(pathSegment.pts, {}, { 
+                    strokeColor: pointData.hex, 
+                    strokeWidth: 4, 
+                    strokeOpacity: previewOpacity 
+                }));
+                
+                const lastIdx = pathSegment.pts.length - 1;
+                const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
+                
+                // Конечная точка теперь имеет ID основной метки вместо своего порядкового номера
+                previewPathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
+                    iconLayout: 'default#imageWithContent', 
+                    iconImageSize: [34, 34], 
+                    iconImageOffset: [-17, -17],
+                    iconImageHref: getIcon(pointData.hex, String(pointData.id), endAz, true, previewMarkerOpacity)
+                }));
+            });
+        }
+    });
+
+    objectManager.events.add('balloonclose', () => {
+        previewPathsCollection.removeAll();
+    });
+
     map.events.add('click', () => {
         map.balloon.close();
     });
@@ -329,28 +369,43 @@ async function loadData(url) {
 function refreshMap() {
     objectManager.removeAll();
     pathsCollection.removeAll();
+    previewPathsCollection.removeAll();
     
-    pointsData.forEach((p, i) => {
-        if (i < currentIndex) return;
+    const features = pointsData.filter((p, i) => i >= currentIndex).map((p, i) => {
+        const absoluteIndex = pointsData.indexOf(p);
         const hasComm = p.paths?.some(x => x.comm);
-        const opacity = i === currentIndex ? 1 : 0.6;
+        const targetOpacity = absoluteIndex === currentIndex ? 1.0 : 0.6;
         
-        const pm = new ymaps.Placemark([p.lat, p.lon], {
-            balloonContent: `
-                <div class="balloon-inner">
-                    <span class="balloon-cmd">${p.cmd}</span>
-                    <button class="balloon-btn" onclick="setTarget(${i})">Выбрать</button>
-                </div>`
-        }, {
-            iconLayout: 'default#imageWithContent',
-            iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.az, false, opacity),
-            iconImageSize: [40, 40], iconImageOffset: [-20, -20],
-            hideIconOnBalloonOpen: false,
-            hasBalloon: true
-        });
-        
-        objectManager.add(pm);
+        return {
+            type: 'Feature',
+            id: p.id,
+            geometry: { type: 'Point', coordinates: [p.lat, p.lon] },
+            properties: {
+                balloonContent: `
+                    <div class="balloon-inner">
+                        <span class="balloon-cmd">${p.cmd}</span>
+                        <button class="balloon-btn" onclick="setTarget(${absoluteIndex})">Выбрать</button>
+                    </div>`
+            },
+            options: {
+                iconLayout: 'default#imageWithContent',
+                iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.az, false, targetOpacity),
+                iconImageSize: [40, 40], iconImageOffset: [-20, -20],
+                hideIconOnBalloonOpen: false,
+                hasBalloon: true
+            }
+        };
     });
+    
+    objectManager.add(features);
+    
+    // Явный сброс прозрачности для текущей цели
+    const currentPoint = pointsData[currentIndex];
+    if (currentPoint) {
+        objectManager.objects.setObjectOptions(currentPoint.id, {
+            iconImageHref: getIcon(currentPoint.hex, `${currentPoint.id}${currentPoint.paths?.some(x => x.comm)?'!':''}`, currentPoint.az, false, 1.0)
+        });
+    }
     
     const t = pointsData[currentIndex];
     if (t?.paths) {
@@ -359,11 +414,13 @@ function refreshMap() {
             pathsCollection.add(new ymaps.Polyline(pathSegment.pts, {}, { strokeColor: t.hex, strokeWidth: 4, strokeOpacity: 0.8 }));
             const lastIdx = pathSegment.pts.length - 1;
             const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
+            
+            // Здесь тоже используем ID родительской точки на конечных метках пути
             pathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
                 iconLayout: 'default#imageWithContent', 
                 iconImageSize: [34, 34], 
                 iconImageOffset: [-17, -17],
-                iconImageHref: getIcon(t.hex, String(i + 1), endAz, true)
+                iconImageHref: getIcon(t.hex, String(t.id), endAz, true, 1.0)
             }));
         });
     }
