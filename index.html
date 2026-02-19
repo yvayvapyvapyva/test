@@ -199,34 +199,53 @@ async function interact() {
 }
 
 /**
- * Исправленная функция воспроизведения.
- * Добавлена нормализация NFC для корректной обработки буквы "й".
+ * Продвинутая функция воспроизведения с двойной проверкой кодировки.
  */
-function playCommand(cmdText) {
+async function playCommand(cmdText) {
     if (!cmdText) return;
     
-    // 1. Приводим к нижнему регистру
-    // 2. Нормализуем строку (важно для буквы "й")
-    // 3. Убираем лишние знаки и ставим подчеркивания
-    const cleanName = cmdText.toLowerCase()
-        .normalize('NFC') 
+    // Формируем базовое имя
+    const baseName = cmdText.toLowerCase()
         .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "")
         .trim()
         .replace(/\s+/g, '_');
-    
-    const fileName = cleanName + '.mp3';
-    
-    // Кодируем только имя файла, чтобы браузер понял кириллицу в URL
-    const encodedFileName = encodeURIComponent(fileName);
-    
-    // Если файлы лежат в папке test/, добавьте путь здесь, если нет — оставьте как есть
-    const audioPath = encodedFileName; 
 
-    console.log("Audio request:", fileName);
+    // Пробуем два варианта нормализации: NFC (единый символ) и NFD (составной)
+    const variants = [
+        baseName.normalize('NFC'),
+        baseName.normalize('NFD')
+    ];
+
+    for (let variant of variants) {
+        const fileName = variant + '.mp3';
+        const audioUrl = encodeURIComponent(fileName);
+        
+        try {
+            const isAvailable = await checkFileExists(audioUrl);
+            if (isAvailable) {
+                console.log("Playing:", fileName);
+                new Audio(audioUrl).play();
+                return; // Успех
+            }
+        } catch(e) {}
+    }
     
-    const audio = new Audio(audioPath);
-    audio.play().catch(e => {
-        console.error("404 Error: Файл не найден по пути:", audioPath);
+    console.error("404: Все варианты имени файла не найдены:", baseName);
+}
+
+/**
+ * Проверяет существование файла перед проигрыванием
+ */
+function checkFileExists(url) {
+    return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('HEAD', url, true);
+        xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+                resolve(xhr.status === 200);
+            }
+        };
+        xhr.send();
     });
 }
 
