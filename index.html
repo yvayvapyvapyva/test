@@ -183,7 +183,7 @@
 </div>
 
 <div class="filter-container">
-    <div class="map-btn" onclick="toggleMenu(); applyWakeLock();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
+    <div class="map-btn" onclick="toggleMenu(); handleUserInteraction();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
     
     <div id="filterMenu">
         <div class="menu-header">
@@ -197,14 +197,14 @@
             </div>
             <div>
                 <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
-                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); applyWakeLock();">
+                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); handleUserInteraction();">
                     <option value="" disabled selected>Загрузка...</option>
                 </select>
             </div>
         </div>
     </div>
 
-    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); applyWakeLock();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
+    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); handleUserInteraction();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
 </div>
 
 <script>
@@ -220,11 +220,24 @@ let pointsData = [], gistSources = [];
 let currentIndex = -1, autoCenter = false, iconCache = new Map();
 let lastUserCoords = null, lastUserSpeed = 0, lastUserAz = 0;
 let wakeLock = null;
+let ttsEnabled = false;
 
 tg.ready();
 tg.expand();
 
 const ui = id => document.getElementById(id);
+
+// Разблокировка TTS и WakeLock по клику
+async function handleUserInteraction() {
+    applyWakeLock();
+    if (!ttsEnabled) {
+        // Проигрываем пустую фразу для разблокировки аудио-движка
+        const silence = new SpeechSynthesisUtterance("");
+        window.speechSynthesis.speak(silence);
+        ttsEnabled = true;
+        console.log("TTS Engine Unlocked");
+    }
+}
 
 async function applyWakeLock() {
     const video = ui('noSleepVideo');
@@ -249,8 +262,9 @@ document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') applyWakeLock();
 });
 
-document.addEventListener('click', applyWakeLock, { once: false });
-document.addEventListener('touchstart', applyWakeLock, { once: false });
+// Глобальные слушатели для гарантированной активации на мобильных
+document.addEventListener('click', handleUserInteraction, { once: false });
+document.addEventListener('touchstart', handleUserInteraction, { once: false });
 
 ymaps.ready(async () => {
     map = new ymaps.Map("map", { 
@@ -455,13 +469,11 @@ function checkNavigation() {
 
     updateHUD();
 
-    // TRIGGER LOGIC:
-    // 1. Must be within TRIGGER_DIST
-    // 2. Heading must be within ±45 deg of the target (as it was before)
     const withinDistance = dist <= CFG.TRIGGER_DIST;
     const isHeadingCorrect = isAngleWithin(lastUserAz, bearingToTarget, 45);
 
     if (withinDistance && isHeadingCorrect) {
+        console.log(`Trigger! Point: ${target.id}, Cmd: ${target.command}`);
         announce(target.command);
         currentIndex++;
         
@@ -481,7 +493,7 @@ function checkNavigation() {
 function renderPointsList() {
     const list = ui('pointsList');
     list.innerHTML = pointsData.map((p, i) => `
-        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); applyWakeLock();">
+        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); handleUserInteraction();">
             <div class="point-badge">${i + 1}</div>
             <div class="point-name">${p.command}</div>
         </div>
@@ -537,10 +549,23 @@ function drawActivePath() {
 }
 
 function announce(text) {
-    if (!text) return;
+    if (!text || !window.speechSynthesis) return;
+    
+    console.log("Attempting to speak:", text);
+    
+    // Останавливаем текущую речь
     window.speechSynthesis.cancel();
+    
     const msg = new SpeechSynthesisUtterance(text);
     msg.lang = 'ru-RU';
+    msg.volume = 1.0;
+    msg.rate = 1.0;
+    msg.pitch = 1.0;
+
+    // Важно для мобильных: если движок "завис", переинициализируем
+    msg.onend = () => console.log("Speech finished");
+    msg.onerror = (e) => console.error("Speech error:", e);
+    
     window.speechSynthesis.speak(msg);
 }
 
