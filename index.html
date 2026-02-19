@@ -383,8 +383,9 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
 }
 
 function getUserIcon(az) {
-    const s = 32, c = s/2;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},2 L${s-4},${s-2} L${c},${s-8} L4,${s-2} Z" fill="#FF3B30" stroke="white" stroke-width="2" stroke-linejoin="round"/></g></svg>`;
+    // Увеличено поле (viewBox) для предотвращения обрезки при вращении
+    const s = 44, c = s/2; 
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},6 L${s-10},${s-8} L${c},${s-14} L10,${s-8} Z" fill="#FF3B30" stroke="white" stroke-width="2.5" stroke-linejoin="round"/></g></svg>`;
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
@@ -405,8 +406,8 @@ function isAngleWithin(angle1, angle2, tolerance) {
 function initUserTracking() {
     userMarker = new ymaps.Placemark([0,0], {}, {
         iconLayout: 'default#image', 
-        iconImageSize: [32, 32], 
-        iconImageOffset: [-16, -16],
+        iconImageSize: [44, 44], 
+        iconImageOffset: [-22, -22], // Центрирование увеличенного контейнера
         iconImageHref: getUserIcon(0)
     });
     map.geoObjects.add(userMarker);
