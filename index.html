@@ -16,7 +16,7 @@
             --text-sub: #86868b;
             --accent: #007AFF;
             --card-bg: #ffffff;
-            --border: rgba(0,0,0,0.1);
+            --border: rgba(255,255,255,0.1);
         }
         
         body, html { 
@@ -29,115 +29,119 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
-        /* Navigation HUD top left */
+        /* Compact Navigation HUD */
         #navHud {
-            position: absolute; top: 16px; left: 16px; right: 110px;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border-radius: 20px; padding: 16px; color: white; z-index: 9000;
-            display: none; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            position: absolute; top: 12px; left: 12px; right: 100px;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-radius: 14px; padding: 10px 14px; color: white; z-index: 9000;
+            display: none; flex-direction: column; gap: 4px; border: 1px solid var(--border);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             pointer-events: none;
         }
         #navHud.active { display: flex; }
         
-        .hud-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-        .hud-cmd { font-size: 17px; font-weight: 700; color: #fff; line-height: 1.2; flex: 1; }
-        .hud-next-label { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .hud-header { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .hud-index { 
+            background: var(--accent); color: white; 
+            font-size: 10px; font-weight: 800; 
+            padding: 2px 6px; border-radius: 6px; 
+            min-width: 14px; text-align: center;
+        }
+        .hud-cmd { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
         
-        .hud-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; }
-        .stat-item { display: flex; flex-direction: column; }
-        .stat-label { font-size: 9px; color: #aaa; text-transform: uppercase; }
-        .stat-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
+        .hud-stats { display: flex; align-items: center; gap: 15px; margin-top: 2px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .stat-item { display: flex; align-items: baseline; gap: 4px; }
+        .stat-label { font-size: 8px; color: #aaa; text-transform: uppercase; }
+        .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
         .highlight { color: #34C759; }
+        /* Индикатор попадания в триггер */
+        .stat-value.in-range { color: #34C759; text-shadow: 0 0 8px rgba(52, 199, 89, 0.6); }
 
         /* Telemetry top right */
         #telemetryHud {
-            position: absolute; top: 16px; right: 16px;
+            position: absolute; top: 12px; right: 12px;
             z-index: 9001;
-            background: rgba(0,0,0,0.75); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            border-radius: 16px; padding: 10px; color: white;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border-radius: 14px; padding: 8px; color: white;
             display: flex; flex-direction: column; gap: 4px;
-            border: 1px solid rgba(255,255,255,0.1);
-            min-width: 70px; align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            min-width: 64px; align-items: center;
         }
         .tel-item { display: flex; flex-direction: column; align-items: center; }
-        .tel-label { font-size: 8px; color: #aaa; text-transform: uppercase; line-height: 1; margin-bottom: 2px; }
-        .tel-value { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .tel-label { font-size: 7px; color: #aaa; text-transform: uppercase; line-height: 1; }
+        .tel-value { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
         .filter-container { 
-            position: absolute; bottom: 40px; right: 16px; left: 16px; 
+            position: absolute; bottom: 30px; right: 16px; left: 16px; 
             z-index: 9000; display: flex; flex-direction: column-reverse; 
             align-items: flex-end; gap: 12px; 
             pointer-events: none;
         }
         .map-btn { 
             pointer-events: auto;
-            width: 56px; height: 56px; border-radius: 50%; 
+            width: 52px; height: 52px; border-radius: 50%; 
             background: rgba(0,0,0,.75); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); 
-            border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 32px rgba(0,0,0,0.3); 
+            border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
             cursor: pointer; display: flex; align-items: center; justify-content: center; 
             transition: all 0.2s ease; 
         }
-        .map-btn svg { fill: white; width: 26px; pointer-events: none; }
+        .map-btn svg { fill: white; width: 24px; pointer-events: none; }
         .map-btn.active { background: var(--btn); }
 
         #filterMenu { 
             pointer-events: auto;
             background: var(--sheet-bg); 
             backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); 
-            border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); 
+            border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); 
             display: none; flex-direction: column; 
-            border: 1px solid rgba(255,255,255,0.4); margin-bottom: 12px; 
+            border: 1px solid rgba(255,255,255,0.4); margin-bottom: 8px; 
             min-width: 260px;
             max-width: calc(100vw - 32px); 
-            max-height: 75vh; overflow: hidden;
+            max-height: 65vh; overflow: hidden;
             align-self: flex-end;
         }
         #filterMenu.active { display: flex; }
 
-        .menu-header { padding: 16px 16px 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-        .menu-title { font-size: 11px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+        .menu-header { padding: 12px 16px 8px 16px; border-bottom: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; }
+        .menu-title { font-size: 10px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.8px; }
 
         #pointsList { 
-            overflow-y: auto; flex: 1; padding: 8px;
-            display: flex; flex-direction: column; gap: 6px;
-            background: rgba(0,0,0,0.01);
+            overflow-y: auto; flex: 1; padding: 6px;
+            display: flex; flex-direction: column; gap: 4px;
             -webkit-overflow-scrolling: touch;
         }
         .point-item {
-            display: flex; align-items: flex-start; gap: 12px; padding: 12px;
-            border-radius: 16px; background: #fff; cursor: pointer;
+            display: flex; align-items: center; gap: 10px; padding: 10px;
+            border-radius: 12px; background: #fff; cursor: pointer;
             border: 1px solid transparent; transition: background 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
         }
         .point-item:active { background: #f2f2f7; }
         .point-item.active { border-color: var(--accent); background: rgba(0,122,255,0.05); }
-        .point-item.passed { opacity: 0.45; filter: grayscale(0.5); }
+        .point-item.passed { opacity: 0.4; }
         
         .point-badge { 
-            min-width: 24px; width: 24px; height: 24px; border-radius: 50%; 
+            min-width: 20px; width: 20px; height: 20px; border-radius: 50%; 
             background: #f0f0f2; color: var(--text-main); 
-            font-size: 11px; font-weight: 800; 
+            font-size: 10px; font-weight: 800; 
             display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0; margin-top: 1px;
+            flex-shrink: 0;
         }
         .active .point-badge { background: var(--accent); color: #fff; }
-        .point-name { font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.3; word-break: break-word; }
+        .point-name { font-size: 13px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .settings-area { padding: 12px; background: #fff; border-top: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
-        .input-group { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .input-label { font-size: 12px; font-weight: 600; color: var(--text-main); }
+        .settings-area { padding: 10px; background: #fff; border-top: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+        .input-group { display: flex; justify-content: space-between; align-items: center; }
+        .input-label { font-size: 11px; font-weight: 600; color: var(--text-main); }
         .trigger-input { 
-            width: 60px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); 
-            background: #f9f9f9; text-align: center; font-size: 13px; font-weight: 700;
+            width: 50px; padding: 6px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); 
+            background: #f9f9f9; text-align: center; font-size: 12px; font-weight: 700;
         }
 
         .source-select { 
-            width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--border); 
-            background: #f9f9f9; font-size: 13px; font-weight: 600; appearance: none;
+            width: 100%; padding: 8px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1); 
+            background: #f9f9f9; font-size: 12px; font-weight: 600; appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat; background-position: right 10px center; background-size: 14px;
+            background-repeat: no-repeat; background-position: right 8px center; background-size: 12px;
         }
 
         .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
@@ -157,25 +161,25 @@
         <span class="tel-label">КМ/Ч</span>
         <span class="tel-value" id="telSpeed">0</span>
     </div>
-    <div style="height:1px; width:80%; background:rgba(255,255,255,0.1); margin:2px 0;"></div>
+    <div style="height:1px; width:70%; background:rgba(255,255,255,0.1); margin:2px 0;"></div>
     <div class="tel-item">
-        <span class="tel-label">АЗИМУТ</span>
+        <span class="tel-label">АЗ</span>
         <span class="tel-value" id="telAz">0°</span>
     </div>
 </div>
 
 <div id="navHud">
-    <div class="hud-next-label">Следующая цель:</div>
-    <div class="hud-row">
+    <div class="hud-header">
+        <span class="hud-index" id="hudIndex">1</span>
         <div class="hud-cmd" id="hudCmd">Ожидание...</div>
     </div>
     <div class="hud-stats">
         <div class="stat-item">
-            <span class="stat-label">Дистанция</span>
-            <span class="stat-value highlight" id="hudDist">---</span>
+            <span class="stat-label">ДИСТ</span>
+            <span class="stat-value" id="hudDist">---</span>
         </div>
         <div class="stat-item">
-            <span class="stat-label">Цель азимут</span>
+            <span class="stat-label">АЗ</span>
             <span class="stat-value" id="hudTargetAz">---</span>
         </div>
     </div>
@@ -191,15 +195,12 @@
         <div id="pointsList"></div>
         <div class="settings-area">
             <div class="input-group">
-                <span class="input-label">Триггер (метры)</span>
+                <span class="input-label">Триггер (м)</span>
                 <input type="number" id="triggerInput" class="trigger-input" value="25" min="5" max="500" onchange="updateTrigger(this.value)">
             </div>
-            <div>
-                <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
-                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); handleUserInteraction();">
-                    <option value="" disabled selected>Загрузка...</option>
-                </select>
-            </div>
+            <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); handleUserInteraction();">
+                <option value="" disabled selected>Файл...</option>
+            </select>
         </div>
     </div>
 
@@ -211,6 +212,7 @@ const tg = window.Telegram.WebApp;
 const CFG = {
     USER_ID: "yvayvapyvapyva",
     TRIGGER_DIST: 25,
+    AZ_TOLERANCE: 45, // Допуск по азимуту (градусы)
     COLORS: { Gold: '#FFD700', Blue: '#007AFF', Red: '#FF3B30', Lime: '#34C759', Fuchsia: '#AF52DE', Orange: '#FF9500', Purple: '#5856D6', Cyan: '#5AC8FA', Brown: '#A2845E', Grey: '#8E8E93' }
 };
 
@@ -275,7 +277,7 @@ async function fetchGistSources() {
                 }
             });
         });
-        ui('sourceSelect').innerHTML = gistSources.map(s => `<option value="${s.url}">${s.name}</option>`).join('');
+        ui('sourceSelect').innerHTML = '<option value="" disabled selected>Выбрать файл...</option>' + gistSources.map(s => `<option value="${s.url}">${s.name}</option>`).join('');
     } catch (e) { ui('loading').innerText = "Ошибка GitHub"; }
 }
 
@@ -309,8 +311,8 @@ function updateVisibleMarkers() {
         if (i >= currentIndex) {
             objectManager.add(new ymaps.Placemark([p.lat, p.lon], {}, {
                 iconLayout: 'default#imageWithContent',
-                iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.fixedAz, false, i === currentIndex ? 1.0 : 0.5),
-                iconImageSize: [40, 40], iconImageOffset: [-20, -20]
+                iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.fixedAz, false, i === currentIndex ? 1.0 : 0.4),
+                iconImageSize: [36, 36], iconImageOffset: [-18, -18]
             }));
         }
     });
@@ -320,16 +322,16 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
     const key = `${col}-${txt}-${az}-${isEnd}-${opacity}`;
     if (iconCache.has(key)) return iconCache.get(key);
     const isRed = txt.includes('!');
-    const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity: ${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/><text x="${c}" y="${c+0.5}" font-size="9" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
+    const s = isEnd ? 30 : 36, c = s/2, t = txt.replace('!', '');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity: ${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+8},${s-4} ${c},${s-12} ${c-8},${s-4}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.2"/></g><circle cx="${c}" cy="${c}" r="${isEnd?6:8}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/><text x="${c}" y="${c+0.5}" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
     const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     iconCache.set(key, res);
     return res;
 }
 
 function getUserIcon(az) {
-    const s = 44, c = s/2; 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},6 L${s-10},${s-8} L${c},${s-14} L10,${s-8} Z" fill="#FF3B30" stroke="white" stroke-width="2.5"/></g></svg>`;
+    const s = 40, c = s/2; 
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},4 L${s-8},${s-6} L${c},${s-12} L8,${s-6} Z" fill="#FF3B30" stroke="white" stroke-width="2"/></g></svg>`;
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
@@ -342,66 +344,104 @@ function calculateAzimuth(p1, p2) {
 }
 
 function initUserTracking() {
-    userMarker = new ymaps.Placemark([0,0], {}, { iconLayout: 'default#image', iconImageSize: [44, 44], iconImageOffset: [-22, -22], iconImageHref: getUserIcon(0) });
+    userMarker = new ymaps.Placemark([0,0], {}, { iconLayout: 'default#image', iconImageSize: [40, 40], iconImageOffset: [-20, -20], iconImageHref: getUserIcon(0) });
     map.geoObjects.add(userMarker);
+    
+    const geoOptions = { 
+        enableHighAccuracy: true, 
+        timeout: 5000, 
+        maximumAge: 0 
+    };
+
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
-            let userAz = pos.coords.heading ?? (lastUserCoords ? calculateAzimuth(lastUserCoords, coords) : 0);
-            lastUserCoords = coords; lastUserSpeed = speed; lastUserAz = userAz;
+            
+            // Если heading не определен (устройство не движется), используем азимут последнего перемещения
+            let userAz = pos.coords.heading !== null ? pos.coords.heading : (lastUserCoords ? calculateAzimuth(lastUserCoords, coords) : lastUserAz);
+            
+            lastUserCoords = coords; 
+            lastUserSpeed = speed; 
+            lastUserAz = userAz;
+            
             userMarker.geometry.setCoordinates(coords);
             userMarker.options.set('iconImageHref', getUserIcon(userAz));
+            
             ui('telSpeed').innerText = Math.round(speed);
             ui('telAz').innerText = `${Math.round(userAz)}°`;
+            
             if (autoCenter) map.panTo(coords);
+            
+            // Прямой запуск навигационной проверки при каждом апдейте координат
             checkNavigation();
-        }, null, { enableHighAccuracy: true });
+        }, err => {
+            console.warn('Geo Error:', err);
+        }, geoOptions);
     }
 }
 
 function updateHUD() {
     if (pointsData.length === 0 || currentIndex === -1) return;
     if (currentIndex >= pointsData.length) { 
+        ui('hudIndex').innerText = "✓";
         ui('hudCmd').innerText = "Готово"; 
         ui('hudDist').innerText = "---";
         ui('hudTargetAz').innerText = "---";
         return; 
     }
     const target = pointsData[currentIndex];
+    ui('hudIndex').innerText = currentIndex + 1;
     ui('hudCmd').innerText = target.command;
     ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
+    
     if (lastUserCoords) {
         const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
-        ui('hudDist').innerText = `${Math.round(d)} м`;
+        ui('hudDist').innerText = `${Math.round(d)}м`;
+        
+        // Подсветка, если условия триггера выполняются (визуальная отладка)
+        const azDiff = getAzimuthDifference(lastUserAz, target.fixedAz);
+        ui('hudDist').classList.toggle('in-range', d <= CFG.TRIGGER_DIST);
+        ui('hudTargetAz').classList.toggle('in-range', azDiff <= CFG.AZ_TOLERANCE);
     }
+}
+
+function getAzimuthDifference(az1, az2) {
+    let diff = Math.abs(az1 - az2) % 360;
+    if (diff > 180) diff = 360 - diff;
+    return diff;
 }
 
 function checkNavigation() {
     if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords || currentIndex >= pointsData.length) return;
-    const target = pointsData[currentIndex];
-    const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
     
-    // Обновляем HUD на каждом шагу
+    const target = pointsData[currentIndex];
+    const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
+    const azDiff = getAzimuthDifference(lastUserAz, target.fixedAz);
+    
+    // Обновляем текст в HUD ДО срабатывания, чтобы видеть текущие цифры
     updateHUD();
 
-    // Логика прохождения точки с проверкой азимута
-    const b = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
-    let diff = Math.abs(lastUserAz - b) % 360;
-    if (diff > 180) diff = 360 - diff;
+    // ПРОВЕРКА ТРИГГЕРА
+    // 1. Дистанция меньше заданной
+    // 2. Текущий азимут движения пользователя совпадает с азимутом точки (в пределах допуска)
+    if (dist <= CFG.TRIGGER_DIST && azDiff <= CFG.AZ_TOLERANCE) {
+        processNextPoint();
+    }
+}
 
-    // Срабатывает, если расстояние меньше порога И азимут совпадает (+- 45 градусов)
-    if (d <= CFG.TRIGGER_DIST && diff <= 45) {
-        announce(target.command);
-        currentIndex++;
-        updateVisibleMarkers();
-        if (currentIndex < pointsData.length) { 
-            drawActivePath(); 
-            renderPointsList(); 
-            updateHUD(); 
-        } else {
-            updateHUD(); // Чтобы вывести "Готово"
-        }
+function processNextPoint() {
+    const target = pointsData[currentIndex];
+    announce(target.command);
+    currentIndex++;
+    
+    updateVisibleMarkers();
+    if (currentIndex < pointsData.length) { 
+        drawActivePath(); 
+        renderPointsList(); 
+        updateHUD(); 
+    } else {
+        updateHUD();
     }
 }
 
@@ -413,7 +453,6 @@ function renderPointsList() {
         </div>
     `).join('');
     
-    // Прокрутка к активному элементу
     const activeEl = ui(`point-${currentIndex}`);
     if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -423,15 +462,12 @@ function jumpTo(idx) {
     updateVisibleMarkers();
     const t = pointsData[idx];
     if (t) {
-        // Фокусируемся на карте
         map.panTo([t.lat, t.lon], { zoom: 17 });
         drawActivePath(); 
         renderPointsList(); 
         ui('navHud').classList.add('active');
-        
-        // ВАЖНО: Принудительно проверяем навигацию сразу после выбора
+        // Сразу проверяем — вдруг мы уже стоим на этой точке
         checkNavigation();
-        
         toggleMenu(false);
     }
 }
@@ -443,12 +479,12 @@ function drawActivePath() {
     if (t?.paths) {
         t.paths.forEach(p => {
             if (p.pts?.length > 0) {
-                pathsCollection.add(new ymaps.Polyline(p.pts, {}, { strokeColor: t.hex, strokeWidth: 5, strokeOpacity: 0.8 }));
+                pathsCollection.add(new ymaps.Polyline(p.pts, {}, { strokeColor: t.hex, strokeWidth: 4, strokeOpacity: 0.8 }));
                 const lastIdx = p.pts.length - 1;
                 let az = t.fixedAz;
                 if (p.pts.length >= 2) az = calculateAzimuth(p.pts[lastIdx-1], p.pts[lastIdx]);
                 pathsCollection.add(new ymaps.Placemark(p.pts[lastIdx], {}, {
-                    iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
+                    iconLayout: 'default#imageWithContent', iconImageSize: [30, 30], iconImageOffset: [-15, -15],
                     iconImageHref: getIcon(t.hex, String(t.id), az, true)
                 }));
             }
@@ -468,7 +504,7 @@ function toggleMenu(val) {
     const menu = ui('filterMenu');
     const newState = (val ?? menu.style.display !== 'flex');
     menu.style.display = newState ? 'flex' : 'none';
-    if (newState) renderPointsList(); // Перерисовываем и скроллим при открытии
+    if (newState) renderPointsList();
 }
 
 function toggleAutoCenter() { 
