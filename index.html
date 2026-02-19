@@ -362,7 +362,12 @@ function initUserTracking() {
 
 function updateHUD() {
     if (pointsData.length === 0 || currentIndex === -1) return;
-    if (currentIndex >= pointsData.length) { ui('hudCmd').innerText = "Готово"; return; }
+    if (currentIndex >= pointsData.length) { 
+        ui('hudCmd').innerText = "Готово"; 
+        ui('hudDist').innerText = "---";
+        ui('hudTargetAz').innerText = "---";
+        return; 
+    }
     const target = pointsData[currentIndex];
     ui('hudCmd').innerText = target.command;
     ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
@@ -376,15 +381,27 @@ function checkNavigation() {
     if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords || currentIndex >= pointsData.length) return;
     const target = pointsData[currentIndex];
     const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
-    const b = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
+    
+    // Обновляем HUD на каждом шагу
     updateHUD();
+
+    // Логика прохождения точки с проверкой азимута
+    const b = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
     let diff = Math.abs(lastUserAz - b) % 360;
     if (diff > 180) diff = 360 - diff;
+
+    // Срабатывает, если расстояние меньше порога И азимут совпадает (+- 45 градусов)
     if (d <= CFG.TRIGGER_DIST && diff <= 45) {
         announce(target.command);
         currentIndex++;
         updateVisibleMarkers();
-        if (currentIndex < pointsData.length) { drawActivePath(); renderPointsList(); updateHUD(); }
+        if (currentIndex < pointsData.length) { 
+            drawActivePath(); 
+            renderPointsList(); 
+            updateHUD(); 
+        } else {
+            updateHUD(); // Чтобы вывести "Готово"
+        }
     }
 }
 
@@ -395,15 +412,27 @@ function renderPointsList() {
             <div class="point-name">${p.command}</div>
         </div>
     `).join('');
+    
+    // Прокрутка к активному элементу
+    const activeEl = ui(`point-${currentIndex}`);
+    if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function jumpTo(idx) {
-    currentIndex = idx; updateVisibleMarkers();
+    currentIndex = idx; 
+    updateVisibleMarkers();
     const t = pointsData[idx];
     if (t) {
+        // Фокусируемся на карте
         map.panTo([t.lat, t.lon], { zoom: 17 });
-        drawActivePath(); renderPointsList(); ui('navHud').classList.add('active');
-        updateHUD(); toggleMenu(false);
+        drawActivePath(); 
+        renderPointsList(); 
+        ui('navHud').classList.add('active');
+        
+        // ВАЖНО: Принудительно проверяем навигацию сразу после выбора
+        checkNavigation();
+        
+        toggleMenu(false);
     }
 }
 
@@ -437,12 +466,15 @@ function announce(text) {
 
 function toggleMenu(val) {
     const menu = ui('filterMenu');
-    menu.style.display = (val ?? menu.style.display !== 'flex') ? 'flex' : 'none';
+    const newState = (val ?? menu.style.display !== 'flex');
+    menu.style.display = newState ? 'flex' : 'none';
+    if (newState) renderPointsList(); // Перерисовываем и скроллим при открытии
 }
 
 function toggleAutoCenter() { 
     autoCenter = !autoCenter; 
     ui('locateBtn').classList.toggle('active', autoCenter); 
+    if (autoCenter && lastUserCoords) map.panTo(lastUserCoords);
 }
 </script>
 </body>
