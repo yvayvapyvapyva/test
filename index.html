@@ -89,6 +89,7 @@
         .point-item {
             display: flex; align-items: center; gap: 10px; padding: 10px;
             border-radius: 12px; background: #fff; border: 1px solid transparent;
+            cursor: pointer;
         }
         .point-item.active { border-color: var(--accent); background: rgba(0,122,255,0.05); }
         .point-item.passed { opacity: 0.4; }
@@ -99,7 +100,17 @@
             display: flex; align-items: center; justify-content: center;
         }
         .active .point-badge { background: var(--accent); color: #fff; }
-        .point-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .point-name { font-size: 13px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Стили для кнопки прослушивания */
+        .speak-btn {
+            width: 32px; height: 32px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            background: #f0f0f2; border: none; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .speak-btn:active { background: #e0e0e2; }
+        .speak-btn svg { width: 18px; height: 18px; fill: var(--text-sub); }
 
         .settings-area { padding: 10px; background: #fff; border-top: 1px solid rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px; }
         .settings-row { display: flex; justify-content: space-between; align-items: center; }
@@ -155,7 +166,6 @@
         </div>
     </div>
 
-    <!-- Кнопка геолокации. По умолчанию добавим класс active -->
     <div id="locateBtn" class="map-btn active" onclick="toggleAutoCenter(); interact();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
 </div>
 
@@ -165,12 +175,12 @@ const CFG = {
     USER_ID: "yvayvapyvapyva",
     TRIGGER_DIST: 25,
     AZ_TOLERANCE: 45, 
-    DEFAULT_CENTER: [56.3268, 44.0059], // Координаты Нижнего Новгорода
+    DEFAULT_CENTER: [56.3268, 44.0059], // Нижний Новгород
     COLORS: { Gold:'#FFD700', Blue:'#007AFF', Red:'#FF3B30', Lime:'#34C759', Fuchsia:'#AF52DE', Orange:'#FF9500', Purple:'#5856D6', Cyan:'#5AC8FA', Brown:'#A2845E', Grey:'#8E8E93' }
 };
 
 let map, objectManager, userMarker, pathsCollection;
-let pointsData = [], currentIndex = -1, autoCenter = true, iconCache = new Map(); // autoCenter теперь true по умолчанию
+let pointsData = [], currentIndex = -1, autoCenter = true, iconCache = new Map();
 let lastPos = null, lastSpeed = 0, lastAz = 0, wakeLock = null, audioInit = false;
 
 const ui = id => document.getElementById(id);
@@ -187,6 +197,12 @@ async function interact() {
         video.play().catch(() => {});
     }
     if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
+}
+
+function playCommand(cmdText) {
+    const fileName = cmdText.toLowerCase().replace(/ /g, '_') + '.mp3';
+    const audio = new Audio(fileName);
+    audio.play().catch(e => console.warn("Audio file not found:", fileName));
 }
 
 function calcAz(p1, p2) {
@@ -210,19 +226,14 @@ function getIcon(color, text, az, isEnd, opacity = 1) {
     return url;
 }
 
-// Ускоренная инициализация
 ymaps.ready(() => {
     let initialized = false;
     const start = (pos) => {
         if (initialized) return;
         initialized = true;
-        // Если pos нет, используем Нижний Новгород из конфига
         initMap(pos ? [pos.coords.latitude, pos.coords.longitude] : CFG.DEFAULT_CENTER);
     };
-
-    // Пробуем получить локацию, но не ждем долго (2 сек для быстрого старта)
     navigator.geolocation.getCurrentPosition(start, () => start(null), { timeout: 2000, enableHighAccuracy: false });
-    // Запасной запуск через 2.5 секунды, если геолокация молчит
     setTimeout(() => start(null), 2500);
 });
 
@@ -324,10 +335,7 @@ function checkNav() {
 
     updateHUD(d, azDiff);
     if (d <= CFG.TRIGGER_DIST && azDiff <= CFG.AZ_TOLERANCE) {
-        const fileName = t.cmd.toLowerCase().replace(/ /g, '_') + '.mp3';
-        const audio = new Audio(fileName);
-        audio.play().catch(e => console.warn("Audio file not found:", fileName));
-        
+        playCommand(t.cmd);
         currentIndex++;
         refreshMap();
     }
@@ -351,6 +359,9 @@ function renderList() {
         <div class="point-item ${i===currentIndex?'active':''} ${i<currentIndex?'passed':''}" onclick="currentIndex=${i};refreshMap();toggleMenu(false);">
             <div class="point-badge">${i+1}</div>
             <div class="point-name">${p.cmd}</div>
+            <button class="speak-btn" onclick="event.stopPropagation(); playCommand('${p.cmd.replace(/'/g, "\\'")}');">
+                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            </button>
         </div>
     `).join('');
 }
