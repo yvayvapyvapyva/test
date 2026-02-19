@@ -29,7 +29,7 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
-        /* HUD навигации сверху (слева) */
+        /* Navigation HUD top left */
         #navHud {
             position: absolute; top: 16px; left: 16px; right: 110px;
             background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
@@ -50,7 +50,7 @@
         .stat-value { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: #fff; }
         .highlight { color: #34C759; }
 
-        /* Телеметрия в верхнем правом углу */
+        /* Telemetry top right */
         #telemetryHud {
             position: absolute; top: 16px; right: 16px;
             z-index: 9001;
@@ -143,7 +143,6 @@
         .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
         .loading-overlay.hidden { display: none; }
 
-        /* Скрытый элемент для предотвращения сна на iOS через видео */
         #noSleepVideo { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
     </style>
 </head>
@@ -152,7 +151,6 @@
 <div id="loading" class="loading-overlay">Загрузка данных...</div>
 <div id="map"></div>
 
-<!-- Видео-заглушка для iOS NoSleep -->
 <video id="noSleepVideo" playsinline loop muted></video>
 
 <div id="telemetryHud">
@@ -228,7 +226,6 @@ tg.expand();
 
 const ui = id => document.getElementById(id);
 
-// Универсальная функция удержания экрана
 async function applyWakeLock() {
     const video = ui('noSleepVideo');
     if (video.paused) {
@@ -372,8 +369,8 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
 }
 
 function getUserIcon(az) {
-    const s = 40, c = s/2;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},4 ${c+12},${s-4} ${c},${s-12} ${c-12},${s-4}" fill="#007AFF" stroke="white" stroke-width="2.5"/></g></svg>`;
+    const s = 32, c = s/2;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},2 L${s-4},${s-2} L${c},${s-8} L4,${s-2} Z" fill="#FF3B30" stroke="white" stroke-width="2" stroke-linejoin="round"/></g></svg>`;
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
@@ -394,8 +391,8 @@ function isAngleWithin(angle1, angle2, tolerance) {
 function initUserTracking() {
     userMarker = new ymaps.Placemark([0,0], {}, {
         iconLayout: 'default#image', 
-        iconImageSize: [40, 40], 
-        iconImageOffset: [-20, -20],
+        iconImageSize: [32, 32], 
+        iconImageOffset: [-16, -16],
         iconImageHref: getUserIcon(0)
     });
     map.geoObjects.add(userMarker);
@@ -403,7 +400,7 @@ function initUserTracking() {
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
-            const speed = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0;
+            const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
             
             let userAz = 0;
             if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
@@ -419,14 +416,13 @@ function initUserTracking() {
             userMarker.geometry.setCoordinates(coords);
             userMarker.options.set('iconImageHref', getUserIcon(userAz));
             
-            ui('telSpeed').innerText = speed;
+            ui('telSpeed').innerText = Math.round(speed);
             ui('telAz').innerText = `${Math.round(userAz)}°`;
             
             if (autoCenter) map.panTo(coords);
             
-            // Прямой вызов проверки при получении данных GPS
             checkNavigation();
-        }, null, { enableHighAccuracy: true });
+        }, null, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
     }
 }
 
@@ -451,30 +447,33 @@ function updateHUD() {
 
 function checkNavigation() {
     if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords) return;
-    
-    if (currentIndex >= pointsData.length) {
-        updateHUD();
-        return;
-    }
+    if (currentIndex >= pointsData.length) return;
 
     const target = pointsData[currentIndex];
     const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
     const bearingToTarget = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
 
-    // Обновляем визуализацию HUD немедленно
     updateHUD();
 
-    // Проверка условий триггера (дистанция + направление движения)
-    if (dist <= CFG.TRIGGER_DIST && isAngleWithin(lastUserAz, bearingToTarget, 45)) {
+    // TRIGGER LOGIC:
+    // 1. Must be within TRIGGER_DIST
+    // 2. Heading must be within ±45 deg of the target (as it was before)
+    const withinDistance = dist <= CFG.TRIGGER_DIST;
+    const isHeadingCorrect = isAngleWithin(lastUserAz, bearingToTarget, 45);
+
+    if (withinDistance && isHeadingCorrect) {
         announce(target.command);
         currentIndex++;
         
-        // Обновляем карту и UI
         updateVisibleMarkers();
         if (currentIndex < pointsData.length) {
             drawActivePath();
             renderPointsList();
-            updateHUD(); // Обновляем HUD для новой цели
+            updateHUD();
+        } else {
+            pathsCollection.removeAll();
+            ui('hudCmd').innerText = "Маршрут завершен";
+            ui('hudDist').innerText = "---";
         }
     }
 }
@@ -509,6 +508,8 @@ function jumpTo(idx) {
 
 function drawActivePath() {
     pathsCollection.removeAll();
+    if (currentIndex >= pointsData.length) return;
+    
     const target = pointsData[currentIndex];
     if (target?.paths) {
         target.paths.forEach(p => {
