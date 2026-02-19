@@ -142,7 +142,6 @@
 
         .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
         .loading-overlay.hidden { display: none; }
-
         #noSleepVideo { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
     </style>
 </head>
@@ -183,7 +182,7 @@
 </div>
 
 <div class="filter-container">
-    <div class="map-btn" onclick="toggleMenu(); unlockAudio();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
+    <div class="map-btn" onclick="toggleMenu(); handleUserInteraction();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
     
     <div id="filterMenu">
         <div class="menu-header">
@@ -197,14 +196,14 @@
             </div>
             <div>
                 <div class="menu-title" style="margin-bottom:4px; font-size:10px;">Файл маршрута</div>
-                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); unlockAudio();">
+                <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); handleUserInteraction();">
                     <option value="" disabled selected>Загрузка...</option>
                 </select>
             </div>
         </div>
     </div>
 
-    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); unlockAudio();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
+    <div id="locateBtn" class="map-btn" onclick="toggleAutoCenter(); handleUserInteraction();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
 </div>
 
 <script>
@@ -220,79 +219,49 @@ let pointsData = [], gistSources = [];
 let currentIndex = -1, autoCenter = false, iconCache = new Map();
 let lastUserCoords = null, lastUserSpeed = 0, lastUserAz = 0;
 let wakeLock = null;
-let audioUnlocked = false;
+let ttsEnabled = false;
 
 tg.ready();
 tg.expand();
 
 const ui = id => document.getElementById(id);
 
-// Принудительная разблокировка звука на iOS
-function unlockAudio() {
-    if (audioUnlocked) return;
-    
-    // Проигрываем пустое сообщение для получения прав доступа
-    if (window.speechSynthesis) {
-        const silent = new SpeechSynthesisUtterance(" ");
-        silent.volume = 0;
-        window.speechSynthesis.speak(silent);
-        audioUnlocked = true;
-        console.log("Audio Unlocked for iOS");
-    }
-    
-    // Заодно активируем видео-заглушку против сна
-    const video = ui('noSleepVideo');
-    if (video.paused) {
-        if (!video.src) {
-            video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
-        }
-        video.play().catch(() => {});
+async function handleUserInteraction() {
+    applyWakeLock();
+    if (!ttsEnabled && window.speechSynthesis) {
+        const silence = new SpeechSynthesisUtterance("");
+        window.speechSynthesis.speak(silence);
+        ttsEnabled = true;
     }
 }
 
 async function applyWakeLock() {
+    const video = ui('noSleepVideo');
+    if (video.paused) {
+        video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
+        video.play().catch(() => {});
+    }
     if ('wakeLock' in navigator) {
         try {
             if (wakeLock) await wakeLock.release();
             wakeLock = await navigator.wakeLock.request('screen');
-        } catch (err) {
-            console.warn(`Wake Lock Error: ${err.name}`);
-        }
+        } catch (err) {}
     }
 }
 
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        applyWakeLock();
-        // На iOS часто нужно перепроверить статус синтеза при возврате
-        if (window.speechSynthesis.speaking) window.speechSynthesis.resume();
-    }
-});
-
 ymaps.ready(async () => {
-    map = new ymaps.Map("map", { 
-        center: [55.75, 37.62], 
-        zoom: 11, 
-        type: 'yandex#satellite', 
-        controls: [] 
-    });
-    
+    map = new ymaps.Map("map", { center: [55.75, 37.62], zoom: 11, type: 'yandex#satellite', controls: [] });
     objectManager = new ymaps.GeoObjectCollection();
     pathsCollection = new ymaps.GeoObjectCollection();
-    
     map.geoObjects.add(objectManager);
     map.geoObjects.add(pathsCollection);
 
     initUserTracking();
     await fetchGistSources();
     if (gistSources.length > 0) loadData(gistSources[0].url);
-    
-    applyWakeLock();
 });
 
-function updateTrigger(val) {
-    CFG.TRIGGER_DIST = parseInt(val) || 25;
-}
+function updateTrigger(val) { CFG.TRIGGER_DIST = parseInt(val) || 25; }
 
 async function fetchGistSources() {
     try {
@@ -306,22 +275,14 @@ async function fetchGistSources() {
                 }
             });
         });
-        updateFileSelector();
+        ui('sourceSelect').innerHTML = gistSources.map(s => `<option value="${s.url}">${s.name}</option>`).join('');
     } catch (e) { ui('loading').innerText = "Ошибка GitHub"; }
-}
-
-function updateFileSelector() {
-    const select = ui('sourceSelect');
-    select.innerHTML = gistSources.map(s => `<option value="${s.url}">${s.name}</option>`).join('');
 }
 
 async function loadData(url) {
     ui('loading').classList.remove('hidden');
-    iconCache.clear();
-    objectManager.removeAll();
-    pathsCollection.removeAll();
-    currentIndex = -1;
-    ui('navHud').classList.remove('active');
+    iconCache.clear(); objectManager.removeAll(); pathsCollection.removeAll();
+    currentIndex = -1; ui('navHud').classList.remove('active');
 
     try {
         const res = await fetch(url);
@@ -332,20 +293,13 @@ async function loadData(url) {
             command: d.paths?.[0]?.cmd?.[0] || d.comment || "Точка " + d.id,
             fixedAz: d.az || 0
         }));
-
         currentIndex = 0;
         updateVisibleMarkers();
-
         const bounds = objectManager.getBounds();
         if (bounds) map.setBounds(bounds, { zoomMargin: 60 });
-        
-        renderPointsList();
-        drawActivePath();
-        
+        renderPointsList(); drawActivePath();
         ui('navHud').classList.add('active');
-        updateHUD();
-
-        ui('loading').classList.add('hidden');
+        updateHUD(); ui('loading').classList.add('hidden');
     } catch (e) { ui('loading').innerText = "Ошибка загрузки"; }
 }
 
@@ -353,33 +307,21 @@ function updateVisibleMarkers() {
     objectManager.removeAll();
     pointsData.forEach((p, i) => {
         if (i >= currentIndex) {
-            const isTarget = i === currentIndex;
-            const hasComm = p.paths?.some(path => path.comm);
-            
-            const placemark = new ymaps.Placemark([p.lat, p.lon], {}, {
+            objectManager.add(new ymaps.Placemark([p.lat, p.lon], {}, {
                 iconLayout: 'default#imageWithContent',
-                iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.fixedAz, false, isTarget ? 1.0 : 0.5),
-                iconImageSize: [40, 40],
-                iconImageOffset: [-20, -20],
-                hasBalloon: false,
-                hasHint: false
-            });
-            
-            objectManager.add(placemark);
+                iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.fixedAz, false, i === currentIndex ? 1.0 : 0.5),
+                iconImageSize: [40, 40], iconImageOffset: [-20, -20]
+            }));
         }
     });
-}
-
-function getIconHtml(col, txt, az, isEnd, opacity = 1.0) {
-    const isRed = txt.includes('!');
-    const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity: ${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/><text x="${c}" y="${c+0.5}" font-size="9" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
 }
 
 function getIcon(col, txt, az, isEnd, opacity = 1.0) {
     const key = `${col}-${txt}-${az}-${isEnd}-${opacity}`;
     if (iconCache.has(key)) return iconCache.get(key);
-    const svg = getIconHtml(col, txt, az, isEnd, opacity);
+    const isRed = txt.includes('!');
+    const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity: ${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/><text x="${c}" y="${c+0.5}" font-size="9" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
     const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     iconCache.set(key, res);
     return res;
@@ -387,163 +329,98 @@ function getIcon(col, txt, az, isEnd, opacity = 1.0) {
 
 function getUserIcon(az) {
     const s = 44, c = s/2; 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},6 L${s-10},${s-8} L${c},${s-14} L10,${s-8} Z" fill="#FF3B30" stroke="white" stroke-width="2.5" stroke-linejoin="round"/></g></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><path d="M${c},6 L${s-10},${s-8} L${c},${s-14} L10,${s-8} Z" fill="#FF3B30" stroke="white" stroke-width="2.5"/></g></svg>`;
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
 
 function calculateAzimuth(p1, p2) {
-    const lat1 = p1[0] * Math.PI / 180, lon1 = p1[1] * Math.PI / 180;
-    const lat2 = p2[0] * Math.PI / 180, lon2 = p2[1] * Math.PI / 180;
-    const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
-
-function isAngleWithin(angle1, angle2, tolerance) {
-    let diff = Math.abs(angle1 - angle2) % 360;
-    if (diff > 180) diff = 360 - diff;
-    return diff <= tolerance;
+    const lat1 = p1[0]*Math.PI/180, lon1 = p1[1]*Math.PI/180;
+    const lat2 = p2[0]*Math.PI/180, lon2 = p2[1]*Math.PI/180;
+    const y = Math.sin(lon2-lon1)*Math.cos(lat2);
+    const x = Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(lon2-lon1);
+    return (Math.atan2(y,x)*180/Math.PI + 360)%360;
 }
 
 function initUserTracking() {
-    userMarker = new ymaps.Placemark([0,0], {}, {
-        iconLayout: 'default#image', 
-        iconImageSize: [44, 44], 
-        iconImageOffset: [-22, -22], 
-        iconImageHref: getUserIcon(0)
-    });
+    userMarker = new ymaps.Placemark([0,0], {}, { iconLayout: 'default#image', iconImageSize: [44, 44], iconImageOffset: [-22, -22], iconImageHref: getUserIcon(0) });
     map.geoObjects.add(userMarker);
-
     if (navigator.geolocation) {
         navigator.geolocation.watchPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
-            
-            let userAz = 0;
-            if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
-                userAz = pos.coords.heading;
-            } else if (lastUserCoords) {
-                userAz = calculateAzimuth(lastUserCoords, coords);
-            }
-            
-            lastUserCoords = coords;
-            lastUserSpeed = speed;
-            lastUserAz = userAz;
-
+            let userAz = pos.coords.heading ?? (lastUserCoords ? calculateAzimuth(lastUserCoords, coords) : 0);
+            lastUserCoords = coords; lastUserSpeed = speed; lastUserAz = userAz;
             userMarker.geometry.setCoordinates(coords);
             userMarker.options.set('iconImageHref', getUserIcon(userAz));
-            
             ui('telSpeed').innerText = Math.round(speed);
             ui('telAz').innerText = `${Math.round(userAz)}°`;
-            
             if (autoCenter) map.panTo(coords);
-            
             checkNavigation();
-        }, null, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
+        }, null, { enableHighAccuracy: true });
     }
 }
 
 function updateHUD() {
     if (pointsData.length === 0 || currentIndex === -1) return;
-    
-    if (currentIndex >= pointsData.length) {
-        ui('hudCmd').innerText = "Маршрут завершен";
-        ui('hudDist').innerText = "---";
-        return;
-    }
-
+    if (currentIndex >= pointsData.length) { ui('hudCmd').innerText = "Готово"; return; }
     const target = pointsData[currentIndex];
     ui('hudCmd').innerText = target.command;
     ui('hudTargetAz').innerText = `${Math.round(target.fixedAz)}°`;
-
     if (lastUserCoords) {
-        const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
-        ui('hudDist').innerText = `${Math.round(dist)} м`;
+        const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
+        ui('hudDist').innerText = `${Math.round(d)} м`;
     }
 }
 
 function checkNavigation() {
-    if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords) return;
-    if (currentIndex >= pointsData.length) return;
-
+    if (pointsData.length === 0 || currentIndex === -1 || !lastUserCoords || currentIndex >= pointsData.length) return;
     const target = pointsData[currentIndex];
-    const dist = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
-    const bearingToTarget = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
-
+    const d = ymaps.coordSystem.geo.getDistance(lastUserCoords, [target.lat, target.lon]);
+    const b = calculateAzimuth(lastUserCoords, [target.lat, target.lon]);
     updateHUD();
-
-    const withinDistance = dist <= CFG.TRIGGER_DIST;
-    const isHeadingCorrect = isAngleWithin(lastUserAz, bearingToTarget, 45);
-
-    if (withinDistance && isHeadingCorrect) {
+    let diff = Math.abs(lastUserAz - b) % 360;
+    if (diff > 180) diff = 360 - diff;
+    if (d <= CFG.TRIGGER_DIST && diff <= 45) {
         announce(target.command);
         currentIndex++;
-        
         updateVisibleMarkers();
-        if (currentIndex < pointsData.length) {
-            drawActivePath();
-            renderPointsList();
-            updateHUD();
-        } else {
-            pathsCollection.removeAll();
-            ui('hudCmd').innerText = "Маршрут завершен";
-            ui('hudDist').innerText = "---";
-        }
+        if (currentIndex < pointsData.length) { drawActivePath(); renderPointsList(); updateHUD(); }
     }
 }
 
 function renderPointsList() {
-    const list = ui('pointsList');
-    list.innerHTML = pointsData.map((p, i) => `
-        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); unlockAudio();">
+    ui('pointsList').innerHTML = pointsData.map((p, i) => `
+        <div id="point-${i}" class="point-item ${i === currentIndex ? 'active' : ''} ${i < currentIndex ? 'passed' : ''}" onclick="jumpTo(${i}); handleUserInteraction();">
             <div class="point-badge">${i + 1}</div>
             <div class="point-name">${p.command}</div>
         </div>
     `).join('');
-    if (currentIndex >= 0) {
-        const activeEl = ui(`point-${currentIndex}`);
-        if (activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
 }
 
 function jumpTo(idx) {
-    currentIndex = idx;
-    updateVisibleMarkers();
-    const target = pointsData[idx];
-    if (target) {
-        map.panTo([target.lat, target.lon], { zoom: 17 });
-        drawActivePath();
-        renderPointsList();
-        ui('navHud').classList.add('active');
-        updateHUD();
-        toggleMenu(false);
+    currentIndex = idx; updateVisibleMarkers();
+    const t = pointsData[idx];
+    if (t) {
+        map.panTo([t.lat, t.lon], { zoom: 17 });
+        drawActivePath(); renderPointsList(); ui('navHud').classList.add('active');
+        updateHUD(); toggleMenu(false);
     }
 }
 
 function drawActivePath() {
     pathsCollection.removeAll();
     if (currentIndex >= pointsData.length) return;
-    
-    const target = pointsData[currentIndex];
-    if (target?.paths) {
-        target.paths.forEach(p => {
+    const t = pointsData[currentIndex];
+    if (t?.paths) {
+        t.paths.forEach(p => {
             if (p.pts?.length > 0) {
-                pathsCollection.add(new ymaps.Polyline(p.pts, {}, { 
-                    strokeColor: target.hex, 
-                    strokeWidth: 5, 
-                    strokeOpacity: 0.8 
-                }));
-                
+                pathsCollection.add(new ymaps.Polyline(p.pts, {}, { strokeColor: t.hex, strokeWidth: 5, strokeOpacity: 0.8 }));
                 const lastIdx = p.pts.length - 1;
-                const lastPt = p.pts[lastIdx];
-                let arrowAz = target.fixedAz;
-                if (p.pts.length >= 2) arrowAz = calculateAzimuth(p.pts[lastIdx - 1], lastPt);
-                
-                pathsCollection.add(new ymaps.Placemark(lastPt, {}, {
-                    iconLayout: 'default#imageWithContent', 
-                    iconImageSize: [34, 34], 
-                    iconImageOffset: [-17, -17],
-                    iconImageHref: getIcon(target.hex, String(target.id), arrowAz, true)
+                let az = t.fixedAz;
+                if (p.pts.length >= 2) az = calculateAzimuth(p.pts[lastIdx-1], p.pts[lastIdx]);
+                pathsCollection.add(new ymaps.Placemark(p.pts[lastIdx], {}, {
+                    iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
+                    iconImageHref: getIcon(t.hex, String(t.id), az, true)
                 }));
             }
         });
@@ -552,20 +429,10 @@ function drawActivePath() {
 
 function announce(text) {
     if (!text || !window.speechSynthesis) return;
-    
-    // iOS требует явного сброса текущей очереди
     window.speechSynthesis.cancel();
-    
     const msg = new SpeechSynthesisUtterance(text);
     msg.lang = 'ru-RU';
-    msg.volume = 1.0;
-    msg.rate = 1.0;
-    msg.pitch = 1.0;
-
-    // В iOS иногда нужно подождать микро-паузу после cancel
-    setTimeout(() => {
-        window.speechSynthesis.speak(msg);
-    }, 50);
+    window.speechSynthesis.speak(msg);
 }
 
 function toggleMenu(val) {
