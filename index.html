@@ -199,26 +199,34 @@ async function interact() {
 }
 
 /**
- * Функция воспроизведения с поддержкой кириллицы.
+ * Исправленная функция воспроизведения.
+ * Добавлена нормализация NFC для корректной обработки буквы "й".
  */
 function playCommand(cmdText) {
     if (!cmdText) return;
     
-    // Очищаем имя от знаков препинания и заменяем пробелы на _
+    // 1. Приводим к нижнему регистру
+    // 2. Нормализуем строку (важно для буквы "й")
+    // 3. Убираем лишние знаки и ставим подчеркивания
     const cleanName = cmdText.toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "") // Убрали подчеркивание из удаления, чтобы оно не удаляло уже имеющиеся
+        .normalize('NFC') 
+        .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "")
+        .trim()
         .replace(/\s+/g, '_');
     
     const fileName = cleanName + '.mp3';
     
-    // encodeURIComponent важен для корректной передачи кириллицы (включая "й") в URL
-    const encodedPath = encodeURIComponent(fileName);
+    // Кодируем только имя файла, чтобы браузер понял кириллицу в URL
+    const encodedFileName = encodeURIComponent(fileName);
     
-    console.log("Запрос файла:", fileName, "-> URL:", encodedPath);
+    // Если файлы лежат в папке test/, добавьте путь здесь, если нет — оставьте как есть
+    const audioPath = encodedFileName; 
+
+    console.log("Audio request:", fileName);
     
-    const audio = new Audio(encodedPath);
+    const audio = new Audio(audioPath);
     audio.play().catch(e => {
-        console.error("Ошибка аудио:", fileName, "Убедитесь, что файл существует именно под таким именем.");
+        console.error("404 Error: Файл не найден по пути:", audioPath);
     });
 }
 
