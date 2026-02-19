@@ -198,24 +198,14 @@ async function interact() {
     if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
 }
 
-/**
- * УПРОЩЕННАЯ ФУНКЦИЯ ПОИСКА MP3
- * Всегда использует NFD нормализацию, так как это рабочий вариант для GitHub
- */
 function playCommand(text) {
     if (!text) return;
-    // Очистка текста для имени файла
     const baseName = text.toLowerCase()
         .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "")
         .trim()
         .replace(/\s+/g, '_');
-
-    // GitHub Pages хранит кириллицу в NFD (разложенная Й). 
-    // Нормализуем и сразу воспроизводим без лишних проверок.
     const fileName = baseName.normalize('NFD') + '.mp3';
     const audioUrl = encodeURIComponent(fileName);
-    
-    console.log("Playing:", fileName);
     const audio = new Audio(audioUrl);
     audio.play().catch(e => console.log("Audio play failed:", audioUrl));
 }
@@ -230,15 +220,29 @@ function calcAz(p1, p2) {
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-function getIcon(color, text, az, isEnd, opacity = 1) {
-    const key = `${color}-${text}-${Math.round(az)}-${isEnd}-${opacity}`;
+/**
+ * ОБНОВЛЕННЫЕ ИКОНКИ ИЗ PRO ВЕРСИИ
+ */
+function getIcon(col, txt, az, isEnd, opacity = 1) {
+    const key = `${col}-${txt}-${Math.round(az)}-${isEnd}-${opacity}`;
     if (iconCache.has(key)) return iconCache.get(key);
-    const size = isEnd ? 30 : 36, c = size/2;
-    const isSpecial = text.includes('!');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" style="opacity:${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+8},${size-4} ${c},${size-12} ${c-8},${size-4}" fill="${color}" stroke="white" stroke-width="1"/></g><circle cx="${c}" cy="${c}" r="${isEnd?6:8}" fill="${color}" stroke="white" stroke-width="1"/><text x="${c}" y="${c+1}" font-size="8" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isSpecial?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${text.replace('!','')}</text></svg>`;
-    const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-    iconCache.set(key, url);
-    return url;
+    
+    const isRed = txt.includes('!');
+    const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
+    
+    // SVG из предоставленного кода Pro версии
+    const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity:${opacity}">
+        <g transform="rotate(${az},${c},${c})">
+            <polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/>
+        </g>
+        <circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/>
+        <text x="${c}" y="${c + 0.5}" font-size="9" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text>
+    </svg>`;
+    
+    const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+    iconCache.set(key, res);
+    return res;
 }
 
 ymaps.ready(() => {
@@ -315,25 +319,26 @@ function refreshMap() {
     
     pointsData.forEach((p, i) => {
         if (i < currentIndex) return;
+        const hasComm = p.paths?.some(x => x.comm);
         objectManager.add(new ymaps.Placemark([p.lat, p.lon], {}, {
             iconLayout: 'default#imageWithContent',
-            iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.az, false, i === currentIndex ? 1 : 0.4),
-            iconImageSize: [36, 36], iconImageOffset: [-18, -18]
+            iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.az, false, i === currentIndex ? 1 : 0.4),
+            iconImageSize: [40, 40], iconImageOffset: [-20, -20]
         }));
     });
     
     const t = pointsData[currentIndex];
     if (t?.paths) {
-        t.paths.forEach(pathSegment => {
+        t.paths.forEach((pathSegment, i) => {
             if (!pathSegment.pts || pathSegment.pts.length < 2) return;
             pathsCollection.add(new ymaps.Polyline(pathSegment.pts, {}, { strokeColor: t.hex, strokeWidth: 4, strokeOpacity: 0.8 }));
             const lastIdx = pathSegment.pts.length - 1;
             const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
             pathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
-                iconLayout: 'default#image', 
-                iconImageSize: [30, 30], 
-                iconImageOffset: [-15, -15],
-                iconImageHref: getIcon(t.hex, String(t.id), endAz, true)
+                iconLayout: 'default#imageWithContent', 
+                iconImageSize: [34, 34], 
+                iconImageOffset: [-17, -17],
+                iconImageHref: getIcon(t.hex, String(i + 1), endAz, true)
             }));
         });
     }
