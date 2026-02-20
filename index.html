@@ -30,7 +30,6 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
-        /* Контейнер нижнего интерфейса */
         .bottom-ui-wrapper {
             position: absolute;
             bottom: 30px;
@@ -44,7 +43,6 @@
             pointer-events: none;
         }
 
-        /* Левая часть: Панель команд (HUD) */
         #navHud {
             flex: 1;
             background: rgba(0,0,0,0.85);
@@ -76,7 +74,6 @@
         .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
         .stat-value.in-range { color: #34C759; text-shadow: 0 0 8px rgba(52, 199, 89, 0.6); }
 
-        /* Правая часть: Телеметрия и Кнопки управления */
         .control-stack {
             display: flex;
             flex-direction: column;
@@ -114,11 +111,10 @@
         .map-btn svg { fill: white; width: 24px; }
         .map-btn.active { background: var(--btn); }
 
-        /* Меню выбора маршрута */
         #filterMenu { 
             position: absolute;
-            bottom: 0;
-            right: 64px;
+            bottom: 60px;
+            right: 0px;
             pointer-events: auto; 
             background: var(--sheet-bg); 
             border-radius: 20px; 
@@ -126,7 +122,7 @@
             flex-direction: column; 
             border: 1px solid rgba(0,0,0,0.15); 
             min-width: 280px; 
-            max-width: calc(100vw - 100px); 
+            max-width: calc(100vw - 40px); 
             max-height: 70vh; 
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -207,13 +203,15 @@
             </div>
         </div>
 
-        <div class="map-btn" onclick="toggleMenu(); interact();">
-            <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+        <div style="position: relative;">
+            <div class="map-btn" id="menuToggleBtn">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+            </div>
             
             <div id="filterMenu">
                 <div class="menu-header"><div class="menu-title">Маршрут</div></div>
                 <div id="pointsList"></div>
-                <div class="settings-area">
+                <div class="settings-area" onclick="event.stopPropagation()">
                     <div class="settings-row">
                         <span class="setting-label">Триггер (м)</span>
                         <input type="number" id="triggerInput" class="trigger-input" value="25" onchange="CFG.TRIGGER_DIST = parseInt(this.value)">
@@ -226,7 +224,7 @@
                         <span class="setting-label">Скорость (км/ч)</span>
                         <input type="number" id="speedThresholdInput" class="trigger-input" value="3" onchange="CFG.SPEED_THRESHOLD = parseInt(this.value)">
                     </div>
-                    <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); interact();">
+                    <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false);">
                         <option value="" disabled selected>Выбрать маршрут...</option>
                     </select>
                 </div>
@@ -346,7 +344,10 @@ function initMap(center) {
     });
 
     objectManager.events.add('balloonclose', () => previewPathsCollection.removeAll());
-    map.events.add('click', () => map.balloon.close());
+    map.events.add('click', () => { 
+        map.balloon.close();
+        toggleMenu(false);
+    });
 
     navigator.geolocation.watchPosition(p => {
         const c = [p.coords.latitude, p.coords.longitude];
@@ -363,6 +364,13 @@ function initMap(center) {
 
     fetchGists();
     ui('loading').classList.add('hidden');
+    
+    // Исправленный обработчик клика по кнопке меню
+    ui('menuToggleBtn').onclick = (e) => {
+        e.stopPropagation();
+        interact();
+        toggleMenu();
+    };
 }
 
 async function fetchGists() {
@@ -370,7 +378,6 @@ async function fetchGists() {
         const res = await fetch(`https://api.github.com/users/${CFG.USER_ID}/gists`);
         const data = await res.json();
         const select = ui('sourceSelect');
-        // Очищаем старые опции кроме дефолтной
         select.innerHTML = '<option value="" disabled selected>Выбрать маршрут...</option>';
         data.forEach(gist => {
             Object.values(gist.files).forEach(file => {
@@ -386,6 +393,7 @@ async function fetchGists() {
 }
 
 async function loadData(url) {
+    if (!url) return;
     ui('loading').innerText = "Загрузка...";
     ui('loading').classList.remove('hidden');
     try {
@@ -438,7 +446,12 @@ function refreshMap() {
     updateHUD();
 }
 
-window.setTarget = (idx) => { currentIndex = idx; map.balloon.close(); refreshMap(); interact(); };
+window.setTarget = (idx) => { 
+    currentIndex = idx; 
+    map.balloon.close(); 
+    refreshMap(); 
+    interact(); 
+};
 
 function checkNav() {
     if (currentIndex < 0 || currentIndex >= pointsData.length || !lastPos) return;
@@ -479,8 +492,17 @@ function renderList() {
     `).join('');
 }
 
-function toggleMenu(s) { ui('filterMenu').style.display = (s ?? ui('filterMenu').style.display !== 'flex') ? 'flex' : 'none'; }
-function toggleAutoCenter() { autoCenter = !autoCenter; ui('locateBtn').classList.toggle('active', autoCenter); }
+function toggleMenu(s) { 
+    const menu = ui('filterMenu');
+    const isVisible = menu.style.display === 'flex';
+    const nextState = s ?? !isVisible;
+    menu.style.display = nextState ? 'flex' : 'none'; 
+}
+
+function toggleAutoCenter() { 
+    autoCenter = !autoCenter; 
+    ui('locateBtn').classList.toggle('active', autoCenter); 
+}
 </script>
 </body>
 </html>
