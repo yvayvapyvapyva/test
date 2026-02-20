@@ -17,6 +17,7 @@
             --accent: #007AFF;
             --card-bg: #ffffff;
             --border: rgba(255,255,255,0.1);
+            --panel-blur: blur(15px);
         }
         
         body, html { 
@@ -29,105 +30,148 @@
         #map { position: absolute; inset: 0; z-index: 1; touch-action: auto; }
         [class*="-copyrights-pane"], [class*="-map-copyrights-promo"], [class*="-controls-pane"] { display: none !important; }
 
+        /* Контейнер нижнего интерфейса */
+        .bottom-ui-wrapper {
+            position: absolute;
+            bottom: 30px;
+            left: 16px;
+            right: 16px;
+            z-index: 9000;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        /* Левая часть: Панель команд (HUD) */
         #navHud {
-            position: absolute; top: 12px; left: 12px; right: 100px;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border-radius: 14px; padding: 12px 14px; color: white; z-index: 9000;
-            display: none; flex-direction: column; gap: 8px; border: 1px solid var(--border);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4); pointer-events: none;
+            flex: 1;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: var(--panel-blur);
+            -webkit-backdrop-filter: var(--panel-blur);
+            border-radius: 18px;
+            padding: 14px;
+            color: white;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            pointer-events: auto;
         }
         #navHud.active { display: flex; }
         
-        .hud-header { display: flex; align-items: flex-start; gap: 10px; }
+        .hud-header { display: flex; align-items: flex-start; gap: 8px; }
         .hud-index { 
-            background: var(--accent); color: white; font-size: 11px; font-weight: 800; 
-            padding: 2px 8px; border-radius: 6px; min-width: 16px; text-align: center; flex-shrink: 0;
+            background: var(--accent); color: white; font-size: 10px; font-weight: 800; 
+            padding: 2px 6px; border-radius: 5px; min-width: 14px; text-align: center; flex-shrink: 0;
         }
-        .hud-cmd { font-size: 16px; font-weight: 700; line-height: 1.25; flex: 1; word-wrap: break-word; }
+        .hud-cmd { font-size: 15px; font-weight: 700; line-height: 1.2; flex: 1; word-wrap: break-word; }
         
-        .hud-stats { display: flex; align-items: center; gap: 15px; margin-top: 2px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .hud-stats { display: flex; align-items: center; gap: 12px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); }
         .stat-item { display: flex; align-items: baseline; gap: 4px; }
-        .stat-label { font-size: 8px; color: #aaa; text-transform: uppercase; }
+        .stat-label { font-size: 8px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
         .stat-value.in-range { color: #34C759; text-shadow: 0 0 8px rgba(52, 199, 89, 0.6); }
 
-        #telemetryHud {
-            position: absolute; top: 12px; right: 12px; z-index: 9001;
-            background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            border-radius: 14px; padding: 8px; color: white;
-            display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--border);
-            min-width: 64px; align-items: center;
+        /* Правая часть: Кнопки и Телеметрия */
+        .control-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 52px; /* Ширина совпадает с кнопками */
+            pointer-events: none;
         }
-        .tel-item { display: flex; flex-direction: column; align-items: center; }
-        .tel-label { font-size: 7px; color: #aaa; text-transform: uppercase; line-height: 1; }
-        .tel-value { font-size: 13px; font-weight: 800; }
 
-        .filter-container { 
-            position: absolute; bottom: 30px; right: 16px; left: 16px; 
-            z-index: 9000; display: flex; flex-direction: column-reverse; 
-            align-items: flex-end; gap: 12px; pointer-events: none;
+        #telemetryHud {
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: var(--panel-blur);
+            -webkit-backdrop-filter: var(--panel-blur);
+            border-radius: 14px;
+            padding: 8px 0;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid var(--border);
+            pointer-events: auto;
+            width: 100%;
         }
+        .tel-item { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        .tel-label { font-size: 7px; color: #aaa; text-transform: uppercase; font-weight: 700; }
+        .tel-value { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
         .map-btn { 
             pointer-events: auto; width: 52px; height: 52px; border-radius: 50%; 
-            background: rgba(0,0,0,.75); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); 
+            background: rgba(0,0,0,.75); backdrop-filter: var(--panel-blur); -webkit-backdrop-filter: var(--panel-blur); 
             border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; 
             align-items: center; justify-content: center; transition: all 0.2s ease; 
         }
         .map-btn svg { fill: white; width: 24px; }
         .map-btn.active { background: var(--btn); }
 
+        /* Меню выбора маршрута */
         #filterMenu { 
-            pointer-events: auto; background: var(--sheet-bg); border-radius: 20px; 
-            display: none; flex-direction: column; border: 1px solid rgba(0,0,0,0.4); 
-            margin-bottom: 8px; min-width: 260px; max-width: calc(100vw - 32px); 
-            max-height: 60vh; overflow: hidden; align-self: flex-end;
+            position: absolute;
+            bottom: 100%; /* Над нижним баром */
+            right: 0;
+            margin-bottom: 12px;
+            pointer-events: auto; 
+            background: var(--sheet-bg); 
+            border-radius: 20px; 
+            display: none; 
+            flex-direction: column; 
+            border: 1px solid rgba(0,0,0,0.15); 
+            min-width: 280px; 
+            max-width: calc(100vw - 32px); 
+            max-height: 50vh; 
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        .menu-header { padding: 12px 16px 8px; border-bottom: 1px solid rgba(0,0,0,0.1); }
-        .menu-title { font-size: 10px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; }
+        .menu-header { padding: 14px 16px 10px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+        .menu-title { font-size: 11px; font-weight: 800; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.5px; }
 
-        #pointsList { overflow-y: auto; flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+        #pointsList { overflow-y: auto; flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
         .point-item {
-            display: flex; align-items: center; gap: 10px; padding: 10px;
+            display: flex; align-items: center; gap: 10px; padding: 12px;
             border-radius: 12px; background: #fff; border: 1px solid transparent;
-            cursor: pointer;
+            cursor: pointer; transition: background 0.2s;
         }
         .point-item.active { border-color: var(--accent); background: rgba(0,122,255,0.05); }
         .point-item.passed { opacity: 0.4; }
         
         .point-badge { 
-            min-width: 20px; height: 20px; border-radius: 50%; 
+            min-width: 22px; height: 22px; border-radius: 50%; 
             background: #f0f0f2; font-size: 10px; font-weight: 800; 
             display: flex; align-items: center; justify-content: center;
         }
         .active .point-badge { background: var(--accent); color: #fff; }
-        .point-name { font-size: 13px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .point-name { font-size: 14px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .speak-btn {
             width: 32px; height: 32px; border-radius: 8px;
             display: flex; align-items: center; justify-content: center;
             background: #f0f0f2; border: none; cursor: pointer;
-            transition: background 0.2s;
         }
-        .speak-btn:active { background: #e0e0e2; }
         .speak-btn svg { width: 18px; height: 18px; fill: var(--text-sub); }
 
-        .settings-area { padding: 10px; background: #fff; border-top: 1px solid rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 8px; }
+        .settings-area { padding: 12px; background: #f9f9f9; border-top: 1px solid rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 10px; }
         .settings-row { display: flex; justify-content: space-between; align-items: center; }
-        .setting-label { font-size: 11px; font-weight: 600; }
-        .trigger-input { width: 50px; padding: 6px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); text-align: center; font-weight: 700; }
-        .source-select { width: 100%; padding: 8px; border-radius: 10px; background: #f9f9f9; border: 1px solid rgba(0,0,0,0.1); }
+        .setting-label { font-size: 12px; font-weight: 600; color: var(--text-main); }
+        .trigger-input { width: 54px; padding: 6px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); text-align: center; font-weight: 700; font-size: 13px; }
+        .source-select { width: 100%; padding: 10px; border-radius: 12px; background: #fff; border: 1px solid rgba(0,0,0,0.1); font-size: 13px; font-weight: 500; }
 
         .loading-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; align-items: center; justify-content: center; color: white; transition: opacity 0.5s ease; }
         .loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
-        .balloon-inner { padding: 5px; min-width: 150px; text-align: center; }
-        .balloon-cmd { font-size: 14px; font-weight: 700; color: #1d1d1f; margin-bottom: 8px; display: block; line-height: 1.2; }
+        .balloon-inner { padding: 8px; min-width: 160px; text-align: center; }
+        .balloon-cmd { font-size: 15px; font-weight: 700; color: #1d1d1f; margin-bottom: 10px; display: block; }
         .balloon-btn { 
-            background: var(--accent); color: white; border: none; padding: 10px 12px; 
-            border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; 
-            width: 100%; transition: transform 0.1s; -webkit-tap-highlight-color: transparent;
+            background: var(--accent); color: white; border: none; padding: 12px; 
+            border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; 
+            width: 100%; -webkit-tap-highlight-color: transparent;
         }
-        .balloon-btn:active { transform: scale(0.96); }
     </style>
 </head>
 <body>
@@ -136,68 +180,78 @@
 <div id="map"></div>
 <video id="noSleepVideo" playsinline loop muted style="display:none"></video>
 
-<div id="telemetryHud">
-    <div class="tel-item"><span class="tel-label">КМ/Ч</span><span class="tel-value" id="telSpeed">0</span></div>
-    <div style="height:1px; width:70%; background:rgba(255,255,255,0.1); margin:2px 0;"></div>
-    <div class="tel-item"><span class="tel-label">АЗ</span><span class="tel-value" id="telAz">0°</span></div>
-</div>
-
-<div id="navHud">
-    <div class="hud-header">
-        <span class="hud-index" id="hudIndex">1</span>
-        <div class="hud-cmd" id="hudCmd">Ожидание...</div>
-    </div>
-    <div class="hud-stats">
-        <div class="stat-item"><span class="stat-label">ДИСТ</span><span class="stat-value" id="hudDist">---</span></div>
-        <div class="stat-item"><span class="stat-label">АЗ</span><span class="stat-value" id="hudTargetAz">---</span></div>
-    </div>
-</div>
-
-<div class="filter-container">
-    <div class="map-btn" onclick="toggleMenu(); interact();"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></div>
-    
-    <div id="filterMenu">
-        <div class="menu-header"><div class="menu-title">Маршрут</div></div>
-        <div id="pointsList"></div>
-        <div class="settings-area">
-            <div class="settings-row">
-                <span class="setting-label">Триггер (м)</span>
-                <input type="number" id="triggerInput" class="trigger-input" value="25" onchange="CFG.TRIGGER_DIST = parseInt(this.value)">
-            </div>
-            <div class="settings-row">
-                <span class="setting-label">Допуск азимута (°)</span>
-                <input type="number" id="azToleranceInput" class="trigger-input" value="45" onchange="CFG.AZ_TOLERANCE = parseInt(this.value)">
-            </div>
-            <div class="settings-row">
-                <span class="setting-label">Порог скорости (км/ч)</span>
-                <input type="number" id="speedThresholdInput" class="trigger-input" value="3" onchange="CFG.SPEED_THRESHOLD = parseInt(this.value)">
-            </div>
-            <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); interact();">
-                <option value="" disabled selected>Выбрать файл...</option>
-            </select>
+<div class="bottom-ui-wrapper">
+    <!-- Слева: Командная панель -->
+    <div id="navHud">
+        <div class="hud-header">
+            <span class="hud-index" id="hudIndex">1</span>
+            <div class="hud-cmd" id="hudCmd">Загрузите маршрут...</div>
+        </div>
+        <div class="hud-stats">
+            <div class="stat-item"><span class="stat-label">ДИСТ</span><span class="stat-value" id="hudDist">---</span></div>
+            <div class="stat-item"><span class="stat-label">АЗ</span><span class="stat-value" id="hudTargetAz">---</span></div>
         </div>
     </div>
 
-    <div id="locateBtn" class="map-btn active" onclick="toggleAutoCenter(); interact();"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 7.48 7.94 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></div>
+    <!-- Справа: Телеметрия и Кнопки -->
+    <div class="control-stack">
+        <!-- Прямоугольная панель телеметрии -->
+        <div id="telemetryHud">
+            <div class="tel-item">
+                <span class="tel-label">КМ/Ч</span>
+                <span class="tel-value" id="telSpeed">0</span>
+            </div>
+            <div style="height:1px; width:60%; background:rgba(255,255,255,0.15); margin:2px 0;"></div>
+            <div class="tel-item">
+                <span class="tel-label">АЗ</span>
+                <span class="tel-value" id="telAz">0°</span>
+            </div>
+        </div>
+
+        <div class="map-btn" onclick="toggleMenu(); interact();">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+            
+            <div id="filterMenu">
+                <div class="menu-header"><div class="menu-title">Маршрут</div></div>
+                <div id="pointsList"></div>
+                <div class="settings-area">
+                    <div class="settings-row">
+                        <span class="setting-label">Триггер (м)</span>
+                        <input type="number" id="triggerInput" class="trigger-input" value="25" onchange="CFG.TRIGGER_DIST = parseInt(this.value)">
+                    </div>
+                    <div class="settings-row">
+                        <span class="setting-label">Допуск азимута (°)</span>
+                        <input type="number" id="azToleranceInput" class="trigger-input" value="45" onchange="CFG.AZ_TOLERANCE = parseInt(this.value)">
+                    </div>
+                    <div class="settings-row">
+                        <span class="setting-label">Скорость (км/ч)</span>
+                        <input type="number" id="speedThresholdInput" class="trigger-input" value="3" onchange="CFG.SPEED_THRESHOLD = parseInt(this.value)">
+                    </div>
+                    <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); interact();">
+                        <option value="" disabled selected>Выбрать маршрут...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div id="locateBtn" class="map-btn active" onclick="toggleAutoCenter(); interact();">
+            <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 7.48 7.94 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+        </div>
+    </div>
 </div>
 
 <script>
 // Безопасная инициализация Telegram WebApp
 const tg = window.Telegram ? window.Telegram.WebApp : null;
-
 try {
     if (tg) {
         tg.ready();
-        // Метод expand() поддерживается практически везде
         tg.expand();
-        // Метод requestFullscreen() доступен только в новых версиях API (v8.0+)
         if (tg.isVersionAtLeast('8.0') && tg.requestFullscreen) {
             tg.requestFullscreen();
         }
     }
-} catch (e) {
-    console.warn("Telegram WebApp init error:", e);
-}
+} catch (e) { console.warn("TG Init error", e); }
 
 const CFG = {
     USER_ID: "yvayvapyvapyva",
@@ -230,42 +284,26 @@ async function interact() {
 
 function playCommand(text) {
     if (!text) return;
-    const baseName = text.toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "")
-        .trim()
-        .replace(/\s+/g, '_');
-    const fileName = baseName.normalize('NFD') + '.mp3';
-    const audioUrl = encodeURIComponent(fileName);
-    const audio = new Audio(audioUrl);
-    audio.play().catch(e => console.log("Audio play failed:", audioUrl));
+    const baseName = text.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-`~()]/g, "").trim().replace(/\s+/g, '_');
+    const audio = new Audio(encodeURIComponent(baseName.normalize('NFD') + '.mp3'));
+    audio.play().catch(() => {});
 }
 
 function calcAz(p1, p2) {
     if (!p1 || !p2) return 0;
-    const lat1 = p1[0] * Math.PI / 180, lon1 = p1[1] * Math.PI / 180;
-    const lat2 = p2[0] * Math.PI / 180, lon2 = p2[1] * Math.PI / 180;
+    const lat1 = p1[0] * Math.PI/180, lon1 = p1[1] * Math.PI/180;
+    const lat2 = p2[0] * Math.PI/180, lon2 = p2[1] * Math.PI/180;
     const dL = lon2 - lon1;
     const y = Math.sin(dL) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dL);
+    const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dL);
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
 function getIcon(col, txt, az, isEnd, opacity = 1) {
     const key = `${col}-${txt}-${Math.round(az)}-${isEnd}-${opacity}`;
     if (iconCache.has(key)) return iconCache.get(key);
-    
-    const isRed = txt.includes('!');
     const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
-    
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity:${opacity}">
-        <g transform="rotate(${az},${c},${c})">
-            <polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/>
-        </g>
-        <circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/>
-        <text x="${c}" y="${c + 0.5}" font-size="${isEnd?8:9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${isRed?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text>
-    </svg>`;
-    
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity:${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/><text x="${c}" y="${c + 0.5}" font-size="${isEnd?8:9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${txt.includes('!')?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
     const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     iconCache.set(key, res);
     return res;
@@ -278,79 +316,47 @@ ymaps.ready(() => {
         initialized = true;
         initMap(pos ? [pos.coords.latitude, pos.coords.longitude] : CFG.DEFAULT_CENTER);
     };
-    navigator.geolocation.getCurrentPosition(start, () => start(null), { timeout: 2000, enableHighAccuracy: false });
+    navigator.geolocation.getCurrentPosition(start, () => start(null), { timeout: 2000 });
     setTimeout(() => start(null), 2500);
 });
 
 function initMap(center) {
     map = new ymaps.Map("map", { center, zoom: 15, type: 'yandex#satellite', controls: [] });
-    
     objectManager = new ymaps.ObjectManager({ clusterize: false });
-    
     pathsCollection = new ymaps.GeoObjectCollection();
     previewPathsCollection = new ymaps.GeoObjectCollection();
-    
     map.geoObjects.add(objectManager).add(pathsCollection).add(previewPathsCollection);
     
     userMarker = new ymaps.Placemark(center, {}, { iconLayout: 'default#image', iconImageSize: [40, 40], iconImageOffset: [-20, -20] });
     map.geoObjects.add(userMarker);
 
     objectManager.events.add('balloonopen', (e) => {
-        const objectId = e.get('objectId');
-        const absoluteIndex = pointsData.findIndex(p => p.id === objectId);
-        const pointData = pointsData[absoluteIndex];
-        
-        if (pointData && pointData.paths) {
+        const p = pointsData.find(x => x.id === e.get('objectId'));
+        if (p?.paths) {
             previewPathsCollection.removeAll();
-            
-            const isTarget = absoluteIndex === currentIndex;
-            const previewOpacity = isTarget ? 0.8 : 0.6;
-            const previewMarkerOpacity = isTarget ? 1.0 : 0.6;
-
-            pointData.paths.forEach((pathSegment, i) => {
-                if (!pathSegment.pts || pathSegment.pts.length < 2) return;
-                
-                previewPathsCollection.add(new ymaps.Polyline(pathSegment.pts, {}, { 
-                    strokeColor: pointData.hex, 
-                    strokeWidth: 4, 
-                    strokeOpacity: previewOpacity 
-                }));
-                
-                const lastIdx = pathSegment.pts.length - 1;
-                const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
-                
-                previewPathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
-                    iconLayout: 'default#imageWithContent', 
-                    iconImageSize: [34, 34], 
-                    iconImageOffset: [-17, -17],
-                    iconImageHref: getIcon(pointData.hex, String(pointData.id), endAz, true, previewMarkerOpacity)
+            p.paths.forEach(ps => {
+                if (!ps.pts || ps.pts.length < 2) return;
+                previewPathsCollection.add(new ymaps.Polyline(ps.pts, {}, { strokeColor: p.hex, strokeWidth: 4, strokeOpacity: 0.6 }));
+                const lastIdx = ps.pts.length - 1;
+                const endAz = calcAz(ps.pts[lastIdx - 1], ps.pts[lastIdx]);
+                previewPathsCollection.add(new ymaps.Placemark(ps.pts[lastIdx], {}, {
+                    iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
+                    iconImageHref: getIcon(p.hex, String(p.id), endAz, true, 0.6)
                 }));
             });
         }
     });
 
-    objectManager.events.add('balloonclose', () => {
-        previewPathsCollection.removeAll();
-    });
-
-    map.events.add('click', () => {
-        map.balloon.close();
-    });
+    objectManager.events.add('balloonclose', () => previewPathsCollection.removeAll());
+    map.events.add('click', () => map.balloon.close());
 
     navigator.geolocation.watchPosition(p => {
         const c = [p.coords.latitude, p.coords.longitude];
-        const currentSpeedKmh = p.coords.speed ? p.coords.speed * 3.6 : 0;
-        lastSpeed = currentSpeedKmh;
-        
-        if (currentSpeedKmh >= CFG.SPEED_THRESHOLD) {
-            lastAz = p.coords.heading ?? (lastPos ? calcAz(lastPos, c) : lastAz);
-        }
-        
+        lastSpeed = p.coords.speed ? p.coords.speed * 3.6 : 0;
+        if (lastSpeed >= CFG.SPEED_THRESHOLD) lastAz = p.coords.heading ?? (lastPos ? calcAz(lastPos, c) : lastAz);
         lastPos = c;
-        
         userMarker.geometry.setCoordinates(c);
         userMarker.options.set('iconImageHref', `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><g transform="rotate(${lastAz},20,20)"><path d="M20,4 L32,34 L20,28 L8,34 Z" fill="#FF3B30" stroke="white" stroke-width="2"/></g></svg>`)}`);
-        
         ui('telSpeed').innerText = Math.round(lastSpeed);
         ui('telAz').innerText = `${Math.round(lastAz)}°`;
         if (autoCenter) map.panTo(c);
@@ -365,10 +371,9 @@ async function fetchGists() {
     try {
         const res = await fetch(`https://api.github.com/users/${CFG.USER_ID}/gists`);
         const data = await res.json();
-        const opts = data.flatMap(g => Object.values(g.files))
-                        .filter(f => f.filename.endsWith('.json'))
-                        .map(f => `<option value="${f.raw_url}">${f.filename.replace('.json','')}</option>`);
-        ui('sourceSelect').innerHTML += opts.join('');
+        ui('sourceSelect').innerHTML += data.flatMap(g => Object.values(g.files))
+            .filter(f => f.filename.endsWith('.json'))
+            .map(f => `<option value="${f.raw_url}">${f.filename.replace('.json','')}</option>`).join('');
     } catch {}
 }
 
@@ -393,56 +398,28 @@ async function loadData(url) {
 function refreshMap() {
     objectManager.removeAll();
     pathsCollection.removeAll();
-    previewPathsCollection.removeAll();
+    const currentT = pointsData[currentIndex];
     
-    const features = pointsData.filter((p, i) => i >= currentIndex).map((p, i) => {
-        const absoluteIndex = pointsData.indexOf(p);
-        const hasComm = p.paths?.some(x => x.comm);
-        const targetOpacity = absoluteIndex === currentIndex ? 1.0 : 0.6;
-        
-        return {
-            type: 'Feature',
-            id: p.id,
-            geometry: { type: 'Point', coordinates: [p.lat, p.lon] },
-            properties: {
-                balloonContent: `
-                    <div class="balloon-inner">
-                        <span class="balloon-cmd">${p.cmd}</span>
-                        <button class="balloon-btn" onclick="setTarget(${absoluteIndex})">Выбрать</button>
-                    </div>`
-            },
-            options: {
-                iconLayout: 'default#imageWithContent',
-                iconImageHref: getIcon(p.hex, `${p.id}${hasComm?'!':''}`, p.az, false, targetOpacity),
-                iconImageSize: [40, 40], iconImageOffset: [-20, -20],
-                hideIconOnBalloonOpen: false,
-                hasBalloon: true
-            }
-        };
-    });
-    
-    objectManager.add(features);
-    
-    const currentPoint = pointsData[currentIndex];
-    if (currentPoint) {
-        objectManager.objects.setObjectOptions(currentPoint.id, {
-            iconImageHref: getIcon(currentPoint.hex, `${currentPoint.id}${currentPoint.paths?.some(x => x.comm)?'!':''}`, currentPoint.az, false, 1.0)
-        });
-    }
-    
-    const t = pointsData[currentIndex];
-    if (t?.paths) {
-        t.paths.forEach((pathSegment, i) => {
-            if (!pathSegment.pts || pathSegment.pts.length < 2) return;
-            pathsCollection.add(new ymaps.Polyline(pathSegment.pts, {}, { strokeColor: t.hex, strokeWidth: 4, strokeOpacity: 0.8 }));
-            const lastIdx = pathSegment.pts.length - 1;
-            const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
-            
-            pathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
-                iconLayout: 'default#imageWithContent', 
-                iconImageSize: [34, 34], 
-                iconImageOffset: [-17, -17],
-                iconImageHref: getIcon(t.hex, String(t.id), endAz, true, 1.0)
+    objectManager.add(pointsData.filter((p, i) => i >= currentIndex).map(p => ({
+        type: 'Feature', id: p.id,
+        geometry: { type: 'Point', coordinates: [p.lat, p.lon] },
+        properties: { balloonContent: `<div class="balloon-inner"><span class="balloon-cmd">${p.cmd}</span><button class="balloon-btn" onclick="setTarget(${pointsData.indexOf(p)})">Выбрать</button></div>` },
+        options: {
+            iconLayout: 'default#imageWithContent',
+            iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.az, false, p===currentT?1:0.6),
+            iconImageSize:[40,40], iconImageOffset:[-20,-20], hideIconOnBalloonOpen:false, hasBalloon:true
+        }
+    })));
+
+    if (currentT?.paths) {
+        currentT.paths.forEach(ps => {
+            if (!ps.pts || ps.pts.length < 2) return;
+            pathsCollection.add(new ymaps.Polyline(ps.pts, {}, { strokeColor: currentT.hex, strokeWidth: 5, strokeOpacity: 0.9 }));
+            const lastIdx = ps.pts.length - 1;
+            const endAz = calcAz(ps.pts[lastIdx - 1], ps.pts[lastIdx]);
+            pathsCollection.add(new ymaps.Placemark(ps.pts[lastIdx], {}, {
+                iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
+                iconImageHref: getIcon(currentT.hex, String(currentT.id), endAz, true, 1)
             }));
         });
     }
@@ -450,22 +427,16 @@ function refreshMap() {
     updateHUD();
 }
 
-window.setTarget = (index) => {
-    currentIndex = index;
-    map.balloon.close();
-    refreshMap();
-    interact();
-};
+window.setTarget = (idx) => { currentIndex = idx; map.balloon.close(); refreshMap(); interact(); };
 
 function checkNav() {
     if (currentIndex < 0 || currentIndex >= pointsData.length || !lastPos) return;
     const t = pointsData[currentIndex];
     const d = ymaps.coordSystem.geo.getDistance(lastPos, [t.lat, t.lon]);
-    let azDiff = Math.abs(lastAz - t.az) % 360;
-    if (azDiff > 180) azDiff = 360 - azDiff;
-
-    updateHUD(d, azDiff);
-    if (d <= CFG.TRIGGER_DIST && azDiff <= CFG.AZ_TOLERANCE) {
+    let ad = Math.abs(lastAz - t.az) % 360;
+    if (ad > 180) ad = 360 - ad;
+    updateHUD(d, ad);
+    if (d <= CFG.TRIGGER_DIST && ad <= CFG.AZ_TOLERANCE) {
         playCommand(t.cmd);
         currentIndex++;
         refreshMap();
@@ -491,7 +462,7 @@ function renderList() {
             <div class="point-badge">${i+1}</div>
             <div class="point-name">${p.cmd}</div>
             <button class="speak-btn" onclick="event.stopPropagation(); playCommand('${p.cmd.replace(/'/g, "\\'")}');">
-                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
             </button>
         </div>
     `).join('');
