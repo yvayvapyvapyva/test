@@ -168,6 +168,10 @@
                 <span class="setting-label">Допуск азимута (°)</span>
                 <input type="number" id="azToleranceInput" class="trigger-input" value="45" onchange="CFG.AZ_TOLERANCE = parseInt(this.value)">
             </div>
+            <div class="settings-row">
+                <span class="setting-label">Порог скорости (км/ч)</span>
+                <input type="number" id="speedThresholdInput" class="trigger-input" value="3" onchange="CFG.SPEED_THRESHOLD = parseInt(this.value)">
+            </div>
             <select id="sourceSelect" class="source-select" onchange="loadData(this.value); toggleMenu(false); interact();">
                 <option value="" disabled selected>Выбрать файл...</option>
             </select>
@@ -178,11 +182,28 @@
 </div>
 
 <script>
-const tg = window.Telegram.WebApp;
+// Безопасная инициализация Telegram WebApp
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+
+try {
+    if (tg) {
+        tg.ready();
+        // Метод expand() поддерживается практически везде
+        tg.expand();
+        // Метод requestFullscreen() доступен только в новых версиях API (v8.0+)
+        if (tg.isVersionAtLeast('8.0') && tg.requestFullscreen) {
+            tg.requestFullscreen();
+        }
+    }
+} catch (e) {
+    console.warn("Telegram WebApp init error:", e);
+}
+
 const CFG = {
     USER_ID: "yvayvapyvapyva",
     TRIGGER_DIST: 25,
-    AZ_TOLERANCE: 45, 
+    AZ_TOLERANCE: 45,
+    SPEED_THRESHOLD: 3, 
     DEFAULT_CENTER: [56.3268, 44.0059],
     COLORS: { Gold:'#FFD700', Blue:'#007AFF', Red:'#FF3B30', Lime:'#34C759', Fuchsia:'#AF52DE', Orange:'#FF9500', Purple:'#5856D6', Cyan:'#5AC8FA', Brown:'#A2845E', Grey:'#8E8E93' }
 };
@@ -282,7 +303,6 @@ function initMap(center) {
         if (pointData && pointData.paths) {
             previewPathsCollection.removeAll();
             
-            // Если точка не является текущей целью, делаем её пути прозрачными
             const isTarget = absoluteIndex === currentIndex;
             const previewOpacity = isTarget ? 0.8 : 0.6;
             const previewMarkerOpacity = isTarget ? 1.0 : 0.6;
@@ -299,7 +319,6 @@ function initMap(center) {
                 const lastIdx = pathSegment.pts.length - 1;
                 const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
                 
-                // Конечная точка теперь имеет ID основной метки вместо своего порядкового номера
                 previewPathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
                     iconLayout: 'default#imageWithContent', 
                     iconImageSize: [34, 34], 
@@ -320,8 +339,13 @@ function initMap(center) {
 
     navigator.geolocation.watchPosition(p => {
         const c = [p.coords.latitude, p.coords.longitude];
-        lastSpeed = p.coords.speed ? p.coords.speed * 3.6 : 0;
-        lastAz = p.coords.heading ?? (lastPos ? calcAz(lastPos, c) : lastAz);
+        const currentSpeedKmh = p.coords.speed ? p.coords.speed * 3.6 : 0;
+        lastSpeed = currentSpeedKmh;
+        
+        if (currentSpeedKmh >= CFG.SPEED_THRESHOLD) {
+            lastAz = p.coords.heading ?? (lastPos ? calcAz(lastPos, c) : lastAz);
+        }
+        
         lastPos = c;
         
         userMarker.geometry.setCoordinates(c);
@@ -399,7 +423,6 @@ function refreshMap() {
     
     objectManager.add(features);
     
-    // Явный сброс прозрачности для текущей цели
     const currentPoint = pointsData[currentIndex];
     if (currentPoint) {
         objectManager.objects.setObjectOptions(currentPoint.id, {
@@ -415,7 +438,6 @@ function refreshMap() {
             const lastIdx = pathSegment.pts.length - 1;
             const endAz = calcAz(pathSegment.pts[lastIdx - 1], pathSegment.pts[lastIdx]);
             
-            // Здесь тоже используем ID родительской точки на конечных метках пути
             pathsCollection.add(new ymaps.Placemark(pathSegment.pts[lastIdx], {}, {
                 iconLayout: 'default#imageWithContent', 
                 iconImageSize: [34, 34], 
@@ -477,9 +499,6 @@ function renderList() {
 
 function toggleMenu(s) { ui('filterMenu').style.display = (s ?? ui('filterMenu').style.display !== 'flex') ? 'flex' : 'none'; }
 function toggleAutoCenter() { autoCenter = !autoCenter; ui('locateBtn').classList.toggle('active', autoCenter); }
-
-tg.ready();
-tg.expand();
 </script>
 </body>
 </html>
