@@ -308,9 +308,10 @@ function getIcon(col, txt, az, isEnd, isCurrent = false) {
     if (iconCache.has(key)) return iconCache.get(key);
     
     const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
-    // Зеленая окантовка шириной 1 пиксель для основной метки текущей цели
+    
+    // Зеленая окантовка шириной 2 пикселя для основной метки текущей цели
     const mainStroke = isCurrent ? '#34C759' : (isEnd ? 'white' : 'black');
-    const mainStrokeWidth = isCurrent ? 1 : 1.5;
+    const mainStrokeWidth = isCurrent ? 2 : 1.5;
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${mainStroke}" stroke-width="${mainStrokeWidth}"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${mainStroke}" stroke-width="${mainStrokeWidth}"/><text x="${c}" y="${c + 0.5}" font-size="${isEnd?8:9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${txt.includes('!')?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
     const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
