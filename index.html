@@ -38,8 +38,8 @@
             right: 16px;
             z-index: 9000;
             display: flex;
-            align-items: flex-end; /* Выравнивание по нижнему краю */
-            justify-content: flex-end; /* Основные элементы справа */
+            align-items: flex-end;
+            justify-content: flex-end;
             gap: 12px;
             pointer-events: none;
         }
@@ -59,7 +59,7 @@
             border: 1px solid var(--border);
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             pointer-events: auto;
-            max-width: calc(100% - 80px); /* Чтобы не налезало на кнопки */
+            max-width: calc(100% - 80px);
         }
         #navHud.active { display: flex; }
         
@@ -81,12 +81,11 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            width: 52px; /* Фиксированная ширина всей правой колонки */
+            width: 52px;
             pointer-events: none;
             flex-shrink: 0;
         }
 
-        /* Прямоугольная панель телеметрии */
         #telemetryHud {
             background: rgba(0,0,0,0.85);
             backdrop-filter: var(--panel-blur);
@@ -118,8 +117,8 @@
         /* Меню выбора маршрута */
         #filterMenu { 
             position: absolute;
-            bottom: 0; /* Привязка к нижней кнопке */
-            right: 64px; /* Смещение влево от колонки кнопок */
+            bottom: 0;
+            right: 64px;
             pointer-events: auto; 
             background: var(--sheet-bg); 
             border-radius: 20px; 
@@ -184,7 +183,6 @@
 <video id="noSleepVideo" playsinline loop muted style="display:none"></video>
 
 <div class="bottom-ui-wrapper">
-    <!-- Слева: Панель навигации -->
     <div id="navHud">
         <div class="hud-header">
             <span class="hud-index" id="hudIndex">1</span>
@@ -196,9 +194,7 @@
         </div>
     </div>
 
-    <!-- Справа: Единый стек управления -->
     <div class="control-stack">
-        <!-- Телеметрия -->
         <div id="telemetryHud">
             <div class="tel-item">
                 <span class="tel-label">КМ/Ч</span>
@@ -211,7 +207,6 @@
             </div>
         </div>
 
-        <!-- Кнопка Меню -->
         <div class="map-btn" onclick="toggleMenu(); interact();">
             <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
             
@@ -238,7 +233,6 @@
             </div>
         </div>
         
-        <!-- Кнопка Геолокации -->
         <div id="locateBtn" class="map-btn active" onclick="toggleAutoCenter(); interact();">
             <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 7.48 7.94 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
         </div>
@@ -246,7 +240,6 @@
 </div>
 
 <script>
-// ... (Логика скрипта остается без изменений, так как затронута только верстка) ...
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 try {
     if (tg) {
@@ -376,10 +369,20 @@ async function fetchGists() {
     try {
         const res = await fetch(`https://api.github.com/users/${CFG.USER_ID}/gists`);
         const data = await res.json();
-        ui('sourceSelect').innerHTML += data.flatMap(g => Object.values(g.files))
-            .filter(f => f.filename.endsWith('.json'))
-            .map(f => `<option value="${f.raw_url}">${f.filename.replace('.json','')}</option>`).join('');
-    } catch {}
+        const select = ui('sourceSelect');
+        // Очищаем старые опции кроме дефолтной
+        select.innerHTML = '<option value="" disabled selected>Выбрать маршрут...</option>';
+        data.forEach(gist => {
+            Object.values(gist.files).forEach(file => {
+                if (file.filename.endsWith('.json')) {
+                    const opt = document.createElement('option');
+                    opt.value = file.raw_url;
+                    opt.innerText = file.filename.replace('.json', '');
+                    select.appendChild(opt);
+                }
+            });
+        });
+    } catch (e) { console.error("Gist error", e); }
 }
 
 async function loadData(url) {
@@ -397,7 +400,10 @@ async function loadData(url) {
         map.setBounds(objectManager.getBounds(), { zoomMargin: 60 });
         ui('navHud').classList.add('active');
         ui('loading').classList.add('hidden');
-    } catch { ui('loading').innerText = "Ошибка"; }
+    } catch { 
+        ui('loading').innerText = "Ошибка загрузки"; 
+        setTimeout(() => ui('loading').classList.add('hidden'), 2000);
+    }
 }
 
 function refreshMap() {
