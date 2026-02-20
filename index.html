@@ -295,11 +295,24 @@ function calcAz(p1, p2) {
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-function getIcon(col, txt, az, isEnd, opacity = 1) {
-    const key = `${col}-${txt}-${Math.round(az)}-${isEnd}-${opacity}`;
+/**
+ * Генерирует иконку метки.
+ * @param {string} col - Цвет заливки.
+ * @param {string} txt - Текст внутри (номер).
+ * @param {number} az - Угол поворота стрелки.
+ * @param {boolean} isEnd - Флаг конечной точки пути.
+ * @param {boolean} isCurrent - Флаг текущей активной цели.
+ */
+function getIcon(col, txt, az, isEnd, isCurrent = false) {
+    const key = `${col}-${txt}-${Math.round(az)}-${isEnd}-${isCurrent}`;
     if (iconCache.has(key)) return iconCache.get(key);
+    
     const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" style="opacity:${opacity}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1.5"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${isEnd?'white':'black'}" stroke-width="1"/><text x="${c}" y="${c + 0.5}" font-size="${isEnd?8:9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${txt.includes('!')?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
+    // Зеленая окантовка шириной 1 пиксель для основной метки текущей цели
+    const mainStroke = isCurrent ? '#34C759' : (isEnd ? 'white' : 'black');
+    const mainStrokeWidth = isCurrent ? 1 : 1.5;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}"><g transform="rotate(${az},${c},${c})"><polygon points="${c},2 ${c+10},${s-5} ${c},${s-14} ${c-10},${s-5}" fill="${col}" stroke="${mainStroke}" stroke-width="${mainStrokeWidth}"/></g><circle cx="${c}" cy="${c}" r="${isEnd?7:9}" fill="${col}" stroke="${mainStroke}" stroke-width="${mainStrokeWidth}"/><text x="${c}" y="${c + 0.5}" font-size="${isEnd?8:9}" font-family="Arial" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${txt.includes('!')?'#FF3B30':'#000'}" stroke="white" stroke-width="2" style="paint-order:stroke fill">${t}</text></svg>`;
     const res = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     iconCache.set(key, res);
     return res;
@@ -337,7 +350,7 @@ function initMap(center) {
                 const endAz = calcAz(ps.pts[lastIdx - 1], ps.pts[lastIdx]);
                 previewPathsCollection.add(new ymaps.Placemark(ps.pts[lastIdx], {}, {
                     iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
-                    iconImageHref: getIcon(p.hex, String(p.id), endAz, true, 0.6)
+                    iconImageHref: getIcon(p.hex, String(p.id), endAz, true, false)
                 }));
             });
         }
@@ -365,7 +378,6 @@ function initMap(center) {
     fetchGists();
     ui('loading').classList.add('hidden');
     
-    // Исправленный обработчик клика по кнопке меню
     ui('menuToggleBtn').onclick = (e) => {
         e.stopPropagation();
         interact();
@@ -425,7 +437,7 @@ function refreshMap() {
         properties: { balloonContent: `<div class="balloon-inner"><span class="balloon-cmd">${p.cmd}</span><button class="balloon-btn" onclick="setTarget(${pointsData.indexOf(p)})">Выбрать</button></div>` },
         options: {
             iconLayout: 'default#imageWithContent',
-            iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.az, false, p===currentT?1:0.6),
+            iconImageHref: getIcon(p.hex, `${p.id}${p.paths?.some(x=>x.comm)?'!':''}`, p.az, false, p===currentT),
             iconImageSize:[40,40], iconImageOffset:[-20,-20], hideIconOnBalloonOpen:false, hasBalloon:true
         }
     })));
@@ -436,9 +448,10 @@ function refreshMap() {
             pathsCollection.add(new ymaps.Polyline(ps.pts, {}, { strokeColor: currentT.hex, strokeWidth: 5, strokeOpacity: 0.9 }));
             const lastIdx = ps.pts.length - 1;
             const endAz = calcAz(ps.pts[lastIdx - 1], ps.pts[lastIdx]);
+            // Для конечных меток пути оставляем белую обводку для контраста с линией
             pathsCollection.add(new ymaps.Placemark(ps.pts[lastIdx], {}, {
                 iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
-                iconImageHref: getIcon(currentT.hex, String(currentT.id), endAz, true, 1)
+                iconImageHref: getIcon(currentT.hex, String(currentT.id), endAz, true, false)
             }));
         });
     }
