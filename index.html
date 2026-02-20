@@ -172,10 +172,11 @@
         }
     </style>
 </head>
-<body>
+<body onclick="interact()">
 
 <div id="loading" class="loading-overlay">Инициализация...</div>
 <div id="map"></div>
+<!-- Скрытое видео для предотвращения сна на iOS -->
 <video id="noSleepVideo" playsinline loop muted style="display:none"></video>
 
 <div class="bottom-ui-wrapper">
@@ -264,19 +265,44 @@ let lastPos = null, lastSpeed = 0, lastAz = 0, wakeLock = null, audioInit = fals
 
 const ui = id => document.getElementById(id);
 
+/**
+ * Функция для поддержания активности экрана.
+ * Использует Wake Lock API и зацикленное видео.
+ */
 async function interact() {
+    // Инициализация аудио при первом клике
     if (!audioInit) {
         const silent = new Audio();
         silent.play().catch(() => {});
         audioInit = true;
     }
+    
+    // Запуск видео-заглушки
     const video = ui('noSleepVideo');
     if (video.paused) {
         video.src = 'data:video/mp4;base64,AAAAHGZ0eXBpc29tAAAAAGlzb21tcDQyAAAACHZyZWQAAAAId2lkdGgAAAAIaGVpZ2h0AAAACmRhdGEAAAAAAA==';
         video.play().catch(() => {});
     }
-    if ('wakeLock' in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
+
+    // Запрос Screen Wake Lock
+    if ('wakeLock' in navigator && !wakeLock) {
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+                wakeLock = null;
+            });
+        } catch (err) {
+            console.warn(`${err.name}, ${err.message}`);
+        }
+    }
 }
+
+// Повторный запрос Wake Lock при возвращении на страницу
+document.addEventListener('visibilitychange', async () => {
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
+    }
+});
 
 function playCommand(text) {
     if (!text) return;
@@ -295,21 +321,11 @@ function calcAz(p1, p2) {
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-/**
- * Генерирует иконку метки.
- * @param {string} col - Цвет заливки.
- * @param {string} txt - Текст внутри (номер).
- * @param {number} az - Угол поворота стрелки.
- * @param {boolean} isEnd - Флаг конечной точки пути.
- * @param {boolean} isCurrent - Флаг текущей активной цели.
- */
 function getIcon(col, txt, az, isEnd, isCurrent = false) {
     const key = `${col}-${txt}-${Math.round(az)}-${isEnd}-${isCurrent}`;
     if (iconCache.has(key)) return iconCache.get(key);
     
     const s = isEnd ? 34 : 40, c = s/2, t = txt.replace('!', '');
-    
-    // Зеленая окантовка шириной 2 пикселя для основной метки текущей цели
     const mainStroke = isCurrent ? '#34C759' : (isEnd ? 'white' : 'black');
     const mainStrokeWidth = isCurrent ? 2 : 1.5;
 
@@ -358,7 +374,9 @@ function initMap(center) {
     });
 
     objectManager.events.add('balloonclose', () => previewPathsCollection.removeAll());
+    
     map.events.add('click', () => { 
+        interact();
         map.balloon.close();
         toggleMenu(false);
     });
@@ -449,7 +467,6 @@ function refreshMap() {
             pathsCollection.add(new ymaps.Polyline(ps.pts, {}, { strokeColor: currentT.hex, strokeWidth: 5, strokeOpacity: 0.9 }));
             const lastIdx = ps.pts.length - 1;
             const endAz = calcAz(ps.pts[lastIdx - 1], ps.pts[lastIdx]);
-            // Для конечных меток пути оставляем белую обводку для контраста с линией
             pathsCollection.add(new ymaps.Placemark(ps.pts[lastIdx], {}, {
                 iconLayout: 'default#imageWithContent', iconImageSize: [34, 34], iconImageOffset: [-17, -17],
                 iconImageHref: getIcon(currentT.hex, String(currentT.id), endAz, true, false)
